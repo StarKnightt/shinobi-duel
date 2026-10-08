@@ -44,6 +44,7 @@ import { ATTACKS, BOSS_MAX, Boss, OPEN, type HitDef } from "./Boss";
 import { applyDifficulty, DIFFICULTY, DIFFICULTY_NAMES, type DifficultyName, initialDifficulty, isDifficulty, rememberDifficulty } from "./difficulty";
 import { CameraRig } from "./CameraRig";
 import { KICK_REACH, PLAYER_MAX, Player, vitalityRegen } from "./Player";
+import { wavedash } from "../wavedash";
 
 export const HITSTOP_DEFLECT = 0.07;
 export const HITSTOP_BLOCK = 0.04;
@@ -134,6 +135,9 @@ export class Game {
 
   state: GState = "title";
   gameTime = 0;
+  /** gameTime when the current fight began (victory time for the leaderboard). */
+  private fightStartT = 0;
+  private fightStartDeaths = 0;
   realTime = 0;
   private hitstop = 0;
   private slowT = 1;
@@ -431,6 +435,8 @@ export class Game {
     applyDifficulty(this.difficulty);
     this.hud.fightDifficulty(this.difficulty);
     this.resetActors();
+    this.fightStartT = this.gameTime;
+    this.fightStartDeaths = this.stats.deaths;
     this.go("fight");
     this.hud.showTitle(false);
     this.hud.hideEnd();
@@ -448,6 +454,8 @@ export class Game {
     applyDifficulty(this.difficulty);
     this.hud.fightDifficulty(this.difficulty);
     this.resetActors();
+    this.fightStartT = this.gameTime;
+    this.fightStartDeaths = this.stats.deaths;
     this.go("fight");
     this.hud.showTitle(false);
     this.hud.hideEnd();
@@ -769,6 +777,7 @@ export class Game {
     const p = this.player;
     const b = this.boss;
     this.stats.mikiri++;
+    wavedash.achieve("MIKIRI");
     this.pending = null;
     this.releaseHolds();
     p.yaw = Math.atan2(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
@@ -804,6 +813,7 @@ export class Game {
     if (!b.hittable) return;
     if (onHead) {
       this.stats.headKicks++;
+      wavedash.achieve("HEAD_KICK");
       b.posture += KICK_HEAD_POSTURE;
       b.kicked();
       this.fx.armour(at, _a.subVectors(at, p.pos).normalize(), 40);
@@ -1235,6 +1245,7 @@ export class Game {
     this.barsTarget = 0.55;
     this.audio.setDuck(0.6);
     this.stats.deathblows++;
+    wavedash.achieve("FIRST_DEATHBLOW");
   }
 
   private deathblow(g: number): void {
@@ -1330,6 +1341,10 @@ export class Game {
     if (t >= tl.end) {
       this.go("victory");
       this.stats.victory = true;
+      wavedash.submitScore(`victory-${this.difficulty}`, (this.gameTime - this.fightStartT) * 1000);
+      wavedash.achieve("VICTORY");
+      if (this.difficulty === "hard") wavedash.achieve("VICTORY_HARD");
+      if (this.stats.deaths === this.fightStartDeaths) wavedash.achieve("NO_DEATH");
       this.desatTarget = 0.65;
       this.hud.showEnd("victory");
       this.cam.setMode("victory");

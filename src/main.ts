@@ -4,11 +4,14 @@ import { activeDifficulty, DIFFICULTY, DIFFICULTY_PRESETS, type DifficultyName }
 import { Input } from "./core/Input";
 import { deflectPosture, Game, KICK_HEAD_POSTURE, MIKIRI_POSTURE } from "./game/Game";
 import { GOURD, REZ } from "./game/Player";
+import { wavedash } from "./wavedash";
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 const hud = document.getElementById("hud") as HTMLElement;
+wavedash.progress(0.2);
 const game = new Game(canvas, hud);
 game.start();
+wavedash.ready();
 const bodies = loadBodies({ player: game.shinobi, boss: game.general }, (who, body) => game.useBody(who, body));
 if (new URLSearchParams(location.search).get("debug") === "anim") void import("./debug/AnimDebug").then((m) => m.mountAnimDebug(game));
 
