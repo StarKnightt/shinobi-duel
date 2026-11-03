@@ -198,3 +198,5 @@ connected to FromSoftware or Activision, and uses none of their assets.
 ## Licence
 
 MIT. See [LICENSE](LICENSE). The Mixamo and Poly Haven assets are under their own terms, above.
+
+☕ like it? [buy me a coffee](https://buymeacoffee.com/prasenx) or [sponsor on github](https://github.com/sponsors/StarKnightt)
