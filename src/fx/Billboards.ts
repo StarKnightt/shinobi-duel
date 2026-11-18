@@ -51,11 +51,15 @@ export class Flash {
         uniform float uT; uniform vec3 uC; varying vec2 vUv;
         void main() {
           vec2 p = (vUv - 0.5) * 2.0;
-          float line = exp(-p.y * p.y * 900.0) + exp(-p.y * p.y * 60.0) * 0.08;
+          // Anamorphic flare: a hair-thin hot line with a faint soft sheath, reaching across the frame.
+          float line = exp(-p.y * p.y * 1400.0) + exp(-p.y * p.y * 80.0) * 0.06;
           // pow() of a negative base is undefined (NaN on some GPUs, and the bloom spreads it over the frame).
-          float along = pow(max(1.0 - abs(p.x), 0.0), 1.6);
+          float ax = abs(p.x);
+          float along = pow(max(1.0 - ax, 0.0), 2.2) * 0.75 + exp(-ax * 9.0) * 0.6;
+          // The line lingers after the core has gone (reference: ~0.4 s), thinning as it fades.
           float k = 1.0 - uT;
-          gl_FragColor = vec4(uC * line * along * k * k, 1.0);
+          line *= exp(-p.y * p.y * 1200.0 * uT);
+          gl_FragColor = vec4(uC * line * along * k * sqrt(k), 1.0);
         }`,
       transparent: true,
       depthWrite: false,
@@ -89,7 +93,7 @@ export class Flash {
       return;
     }
     this.mat.uniforms.uT.value = this.t;
-    if (this.kind === "streak") this.mesh.scale.set(this.size, this.size * 0.06, 1);
+    if (this.kind === "streak") this.mesh.scale.set(this.size, this.size * 0.03, 1);
     else {
       const s = this.size * (0.85 + this.t * 0.3);
       this.mesh.scale.set(s, s, 1);

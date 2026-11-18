@@ -93,8 +93,8 @@ export class Fx {
         0.004 + R() * 0.006,
         0.014,
         hot ? 14 : 10,
-        hot ? 9 : 5.5,
-        hot ? 4.5 : 1.7,
+        hot ? 7.6 : 4.2,
+        hot ? 3.2 : 1.0,
       );
     }
     const petals = Math.round((10 + R() * 4) * Math.min(1.4, power));
@@ -113,7 +113,7 @@ export class Fx {
     for (let i = 0; i < 46 * power; i++) {
       coneDir(_p.set(out.x, out.y + 0.8, out.z).normalize(), 1.1, R, _d);
       const sp = 1 + R() * 3.2;
-      this.embers.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 0.7 + R() * 0.9, 0.007 + R() * 0.006, 0.02, 9, 4.2, 1.2);
+      this.embers.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 1.0 + R() * 1.2, 0.007 + R() * 0.006, 0.02, 9, 4.2, 1.2);
     }
     for (let i = 0; i < 8; i++) {
       coneDir(out, 1.2, R, _d);
@@ -122,8 +122,10 @@ export class Fx {
     }
     // No shockwave ring here: the ripple is a refraction in post (Post.shock), not a drawn circle.
     this.flash.fire(p, 0.95 * power, new THREE.Color(14, 9, 5), 0.14, 0, 0.75);
-    this.streak.fire(p, 4.2, new THREE.Color(5, 4.2, 3.4), 0.1);
-    this.pulseLight(p, 24 * power, 0xffa860, 0.09);
+    // Reference (Sekiro deflects): a long thin orange flare line across the frame that outlives
+    // the core, and a warm pool of light on the ground under the blades for about half a second.
+    this.streak.fire(p, 16, new THREE.Color(7, 2.1, 0.5).multiplyScalar(Math.min(1.3, power)), 0.34);
+    this.pulseLight(p, 22 * power, 0xff9a48, 0.17);
   }
 
   /** Regular block: dull, sparse sparks. */

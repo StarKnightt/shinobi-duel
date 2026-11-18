@@ -25,3 +25,6 @@ assets/mixamo/*
 # Big third-party source packs (the list and licences stay)
 assets/source/*
 !assets/source/LICENSES.md
+
+# Reference clips and screenshots (never committed, never shipped)
+refs/
