@@ -106,6 +106,9 @@ export class FighterSlot implements Fighter {
   frame(dt: number): void {
     this.active.frame(dt);
   }
+  setGlow(color: THREE.Color | null, k = 0, body = 0): void {
+    this.active.setGlow?.(color, k, body);
+  }
   beginRender(d: THREE.Vector3): void {
     this.active.beginRender(d);
   }

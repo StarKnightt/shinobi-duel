@@ -171,6 +171,18 @@ export class SkinnedCharacter implements Fighter {
   private tau = 0;
   private segI = -1;
 
+  /** Base fresnel rim (cfg.rim) and the live rim the shader reads (base + glow). */
+  private readonly rimBase = new THREE.Color();
+  readonly rimColor = new THREE.Color();
+  readonly glowBody = { value: 0 };
+
+  /** Glow over the body: `color` × `k` added to the rim, `body` spreads it from the edges inward. */
+  setGlow(color: THREE.Color | null, k = 0, body = 0): void {
+    this.rimColor.copy(this.rimBase);
+    if (color && k > 0) this.rimColor.r += color.r * k, this.rimColor.g += color.g * k, this.rimColor.b += color.b * k;
+    this.glowBody.value = color && k > 0 ? body : 0;
+  }
+
   private constructor(
     readonly cfg: SkinnedConfig,
     model: THREE.Object3D,
@@ -178,6 +190,8 @@ export class SkinnedCharacter implements Fighter {
     source: Character,
   ) {
     this.source = source;
+    if (cfg.rim) this.rimBase.set(cfg.rim.color).multiplyScalar(cfg.rim.strength);
+    this.rimColor.copy(this.rimBase);
     this.rig = new SkinnedRig(cfg.capsuleR);
     {
       const pa = new THREE.Vector3();
@@ -197,7 +211,7 @@ export class SkinnedCharacter implements Fighter {
         o.castShadow = true;
         // Skinned bounds follow the bind pose: animated limbs would pop out of the frustum.
         o.frustumCulled = false;
-        if (cfg.rim) for (const m of [(o as THREE.Mesh).material].flat()) addRim(m as THREE.MeshStandardMaterial, cfg.rim.color, cfg.rim.strength);
+        if (cfg.rim) for (const m of [(o as THREE.Mesh).material].flat()) addRim(m as THREE.MeshStandardMaterial, this.rimColor, this.glowBody);
       }
     });
     // Scale the bind pose to the character's height; face +Z.
@@ -1327,17 +1341,21 @@ function tinted(m: THREE.MeshStandardMaterial, color: number): THREE.MeshStandar
   return c;
 }
 
-/** Fresnel rim added to the emissive term (all lights: it lifts the silhouette off the sky). */
-function addRim(m: THREE.MeshStandardMaterial, color: number, strength: number): void {
+/**
+ * Fresnel rim added to the emissive term (all lights: it lifts the silhouette off the sky). The
+ * colour is the character's live `rimColor` (base rim + any glow: curse, heal, rage); `glowBody`
+ * spreads that glow over the whole body, not just the edges.
+ */
+function addRim(m: THREE.MeshStandardMaterial, rimColor: THREE.Color, glowBody: { value: number }): void {
   if (!m || !(m as THREE.MeshStandardMaterial).isMeshStandardMaterial) return;
-  const rimColor = new THREE.Color(color).multiplyScalar(strength);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.rimColor = { value: rimColor };
+    sh.uniforms.uGlowBody = glowBody;
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 rimColor;")
+      .replace("#include <common>", "#include <common>\nuniform vec3 rimColor;\nuniform float uGlowBody;")
       .replace(
         "#include <emissivemap_fragment>",
-        "#include <emissivemap_fragment>\n  totalEmissiveRadiance += rimColor * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);",
+        "#include <emissivemap_fragment>\n  { float rf = 1.0 - saturate(dot(normal, normalize(vViewPosition))); totalEmissiveRadiance += rimColor * (pow(rf, 3.0) + uGlowBody * (0.25 + 0.75 * rf * rf)); }",
       );
   };
   m.customProgramCacheKey = () => "rim";

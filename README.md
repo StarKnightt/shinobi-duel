@@ -39,15 +39,19 @@ The build uses a relative base, so `dist/` works from any static host or sub-pat
 | W A S D | Move, relative to the camera, locked on or free |
 | Left mouse (J) | Attack. Hold it and the light cut flows into a charged cut that drives through his guard |
 | Right mouse (K, L) | Guard. Tap it just before a blow lands to deflect |
+| F | Parry: a guard tap with no held block behind it (same deflect window) |
 | Shift | Step dodge; hold to sprint. Step into a thrust to mikiri it |
 | Space | Jump. Jump again at him to kick off his head; attack in the air for an air cut |
 | R | Drink from the healing gourd |
+| 1 | Cursed Blade: violet fire on the katana for 9 s, cuts deal 1.4× damage and 1.5× posture (30 s recharge) |
+| 2 | Firecrackers: he reels, stunned, if he's close and in front of you; breaks a wind-up (20 s recharge) |
+| 3 | Crow Step: vanish in black feathers and reappear behind him for a cut at his back (15 s recharge) |
 | Middle mouse / Q / Tab | Lock on, or unlock and re-centre the camera behind her |
 | M | Mute (remembered) |
-| A / D, ← / →, 1 2 3, click | Choose the difficulty on the title: 易 Easy · 中 Medium · 難 Hard (remembered) |
+| A / D, ← / →, 1 2 3, click | On the title only (1 2 3 are abilities in the fight): choose the difficulty: 易 Easy · 中 Medium · 難 Hard (remembered) |
 | Enter / E / Space / click | Confirm on the title and end screens; Esc / Backspace goes back |
 
-The title shows the same list in ink. Nothing else is on screen outside the fight HUD.
+Ctrl is deliberately unbound (Ctrl+W closes the tab). The title shows the same list in ink. Nothing else is on screen outside the fight HUD.
 
 | URL option | Effect |
 |---|---|
@@ -122,10 +126,10 @@ shrinks the viewport.
 | Tool | What it checks |
 |---|---|
 | `node tools/bot.mjs` | Real-time playtest: title, a key, both phases. Passes only with ≥6 deflects, a mikiri, a jumped sweep, exactly one heal, two deathblows, VICTORY and zero errors |
-| `node tools/mech.mjs` | 51 deterministic mechanics checks: input, movement, camera, the deflect window and anti-mash, mikiri, sweep and kick, grab, gourd and punish, deathblows, regen tables, cancels, death flow |
+| `node tools/mech.mjs` | 61 deterministic mechanics checks: input, movement, camera, the deflect window and anti-mash, mikiri, sweep and kick, grab, gourd and punish, deathblows, regen tables, cancels, death flow, F parry, Ctrl unbound, each ability and its recharge |
 | `node tools/combat.mjs` | 19 sword-fight glitch repros, one per bug fixed in the combat pass (floating sparks, blades through bodies, lunges overshooting…) |
 | `node tools/deathloop.mjs` | Real keyboard and mouse events through three rounds of die, resurrect, die, defeat and restart |
-| `node tools/fairness.mjs` | Simulated players: a frame-perfect bot, a learner, a casual player and a masher (add `?difficulty=` to `DUEL_URL` for the other presets) |
+| `node tools/fairness.mjs` | Simulated players: a frame-perfect bot, a learner, a casual player and a masher, then the same players firing every ability on recharge (add `?difficulty=` to `DUEL_URL` for the other presets) |
 | `node tools/difficulty.mjs` | The title's difficulty choice with real keys and clicks: never starts the fight, remembered, kept through three rounds of die, resurrect, defeat and restart |
 | `node tools/soak.mjs [secs]` | Five bot fights back to back, random-input fuzz, resource growth, hitches, tab switches, resizes |
 | `node tools/perf.mjs` | Frame rate and first-use shader compiles |

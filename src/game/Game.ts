@@ -41,11 +41,17 @@ import { Post } from "../render/Post";
 import { Hud } from "../ui/Hud";
 import { Arena } from "../world/Arena";
 import { RIM, SUN_DIR, installFog } from "../world/materials";
+import { ABILITY, ABILITY_IDS } from "./Abilities";
 import { ATTACKS, BOSS_MAX, Boss, OPEN, type HitDef } from "./Boss";
 import { applyDifficulty, DIFFICULTY, DIFFICULTY_NAMES, type DifficultyName, initialDifficulty, isDifficulty, rememberDifficulty } from "./difficulty";
 import { CameraRig } from "./CameraRig";
 import { KICK_REACH, PLAYER_MAX, Player, vitalityRegen } from "./Player";
 import { wavedash } from "../wavedash";
+
+/** Glow colours (ART_DIRECTION.md palette): curse violet, healing jade, blood rage. */
+const GLOW_CURSE = new THREE.Color(0.62, 0.3, 1.0);
+const GLOW_HEAL = new THREE.Color(0.32, 0.85, 0.6);
+const GLOW_RAGE = new THREE.Color(1.0, 0.14, 0.05);
 
 export const HITSTOP_DEFLECT = 0.07;
 export const HITSTOP_BLOCK = 0.04;
@@ -104,6 +110,10 @@ export interface DuelStats {
   victory: boolean;
   deaths: number;
   defeats: number;
+  /** Abilities cast (keys 1-3), cuts landed with the cursed blade, firecracker stuns. */
+  abilities: { curse: number; crackers: number; crow: number };
+  cursedHits: number;
+  stuns: number;
   /** For each perfect deflect: seconds between the press and the blade contact (+ = early). */
   timings: number[];
   /** Predicted contact − actual contact, per boss hit that connected (bot calibration). */
@@ -171,6 +181,10 @@ export class Game {
   private finPlunged = false;
   private deflectChain = 0;
   private lastDeflectT = -9;
+  /** Fade levels of the steady glows (0..1): her curse and heal, his phase-2 rage. */
+  private curseK = 0;
+  private healK = 0;
+  private rageK = 0;
   /** Boss attack serial whose sweep the player already cleared / whose throw already landed. */
   private sweepSeen = -1;
   private throwLanded = -1;
@@ -227,6 +241,7 @@ export class Game {
 
     this.scene.add(this.snow.points, this.blizzard.group);
     this.fx = new Fx(this.scene);
+    this.fx.onPop = (big) => this.audio.crackerPop(big);
     this.playerBody.addTo(this.scene);
     this.bossBody.addTo(this.scene);
     this.player = new Player(this.playerBody);
@@ -237,7 +252,13 @@ export class Game {
     this.input = new Input(canvas);
     this.hud.setDifficulty(this.difficulty);
     this.hud.onDifficultyPick = (d) => {
-      if (this.state === "title") this.setDifficulty(d, true);
+      if (this.state !== "title") return;
+      this.audio.start();
+      this.setDifficulty(d, true);
+      this.audio.uiSelect();
+    };
+    this.hud.onHover = () => {
+      if (this.state === "title") this.audio.uiMove();
     };
     this.input.onKeyDown = (code) => this.titleKey(code);
     this.loop = new Loop(
@@ -289,6 +310,9 @@ export class Game {
       victory: false,
       deaths: 0,
       defeats: 0,
+      abilities: { curse: 0, crackers: 0, crow: 0 },
+      cursedHits: 0,
+      stuns: 0,
       timings: [],
       contactErr: [],
       hitLog: [],
@@ -346,6 +370,10 @@ export class Game {
     this.finInk2 = false;
     this.finPlunged = false;
     this.deflectChain = 0;
+    this.curseK = this.healK = this.rageK = 0;
+    this.playerBody.setVisible(true);
+    this.playerBody.setGlow(null);
+    this.bossBody.setGlow(null);
     this.stats.victory = false;
     this.bot.healed = false;
     this.sweepSeen = this.throwLanded = this.grabSeen = -1;
@@ -426,7 +454,11 @@ export class Game {
       const m = /^(?:Digit|Numpad)([1-9])$/.exec(code);
       if (m && +m[1] <= n) j = +m[1] - 1;
     }
-    if (j >= 0 && j !== i) this.setDifficulty(DIFFICULTY_NAMES[j], true);
+    if (j >= 0 && j !== i) {
+      this.audio.start();
+      this.setDifficulty(DIFFICULTY_NAMES[j], true);
+      this.audio.uiSelect();
+    }
   }
 
   /** Title / defeat → the fight, opening with the general's leap straight off the keypress. */
@@ -536,6 +568,7 @@ export class Game {
 
     p.step(g, this.wind, this.gameTime);
     b.step(g, this.wind, this.gameTime);
+    this.auras(g);
     if (this.state === "fight") this.contacts();
     this.fx.updateGame(g);
     this.drainEvents();
@@ -1027,28 +1060,44 @@ export class Game {
     const sw = p.swing!;
     const at = this.contact.clone();
     const out = _a.subVectors(p.pos, b.pos).setY(0.5).normalize().clone();
+    // The cut's travel (for the spray): from her toward him, a little up.
+    const through = _c2.subVectors(b.pos, p.pos).setY(0.35).normalize().clone();
     b.postureIdle = 0;
+    // Cursed blade (ability 1): more vitality and posture damage, but only on cuts that land.
+    const cursed = p.abil.cursed;
+    const dmg = sw.dmg * (cursed ? ABILITY.curse.dmg : 1);
+    const pos = sw.posture * (cursed ? ABILITY.curse.posture : 1);
+    if (cursed) this.stats.cursedHits++;
     if (b.state === "attack") {
       // Committed to a swing: armoured through it, he takes it without flinching (and keeps coming).
-      b.health -= sw.dmg * 0.45;
-      b.posture += sw.posture * DIFFICULTY.cutPostureArmoured;
+      b.health -= dmg * 0.45;
+      b.posture += pos * DIFFICULTY.cutPostureArmoured;
       this.audio.hitAccent();
       this.stats.playerHits++;
       this.fx.armour(at, out, 30);
+      this.fx.cutSpray(at, through, 0.6, cursed);
       this.audio.hitFlesh(true);
-      this.hitstop = 0.035;
-      this.cam.shake(0.12);
+      if (cursed) this.audio.curseBite();
+      this.hitstop = 0.045;
+      this.cam.shake(0.14);
+      this.cam.punch(0.12);
     } else if (OPEN.has(b.state) || b.state === "stagger" || ((b.state === "idle" || b.state === "wait") && !sw.charged && b.slips())) {
       // In an opening (or his idle guard slipped): the cut lands in full.
-      b.health -= sw.dmg;
-      b.posture += sw.posture * DIFFICULTY.cutPostureOpen;
+      b.health -= dmg;
+      b.posture += pos * DIFFICULTY.cutPostureOpen;
       this.audio.hitAccent();
       this.stats.playerHits++;
       this.fx.armour(at, out, 50);
+      this.fx.cutSpray(at, through, sw.heavy ? 1.3 : 1, cursed);
       this.audio.hitFlesh(true);
-      this.hitstop = 0.05;
-      this.cam.shake(0.2);
-      if (b.state !== "stagger" && !b.cutInOpening() && (b.state === "flinch" || b.state === "recover" || b.state === "whiff" || b.state === "idle" || b.state === "wait")) b.flinch();
+      if (cursed) this.audio.curseBite();
+      this.hitstop = sw.heavy ? 0.075 : 0.06;
+      this.cam.shake(sw.heavy ? 0.28 : 0.2);
+      this.cam.punch(sw.heavy ? 0.3 : 0.18);
+      this.post.kickAberration(sw.heavy ? 0.5 : 0.3);
+      // Stunned (firecrackers, the crow step): the opening counts cuts, but a cut doesn't reset it.
+      if (b.state === "stunned") b.cutInOpening();
+      else if (b.state !== "stagger" && !b.cutInOpening() && (b.state === "flinch" || b.state === "recover" || b.state === "whiff" || b.state === "idle" || b.state === "wait")) b.flinch();
     } else if (b.state === "idle" || b.state === "block" || b.state === "wait") {
       b.yaw = Math.atan2(p.pos.x - b.pos.x, p.pos.z - b.pos.z);
       b.ch.guardAt(at);
@@ -1057,8 +1106,8 @@ export class Game {
         b.enter("block");
         b.setClip("block", 0.05);
         b.step(0, this.wind, this.gameTime);
-        b.health -= sw.dmg * 0.35;
-        b.posture += sw.posture;
+        b.health -= dmg * 0.35;
+        b.posture += pos;
         this.stats.bossBlocks++;
         p.ch.bounce();
         this.fx.armour(at, out, 36);
@@ -1363,6 +1412,100 @@ export class Game {
 
   // ------------------------------------------------------------------ events → sound / fx
 
+  // ------------------------------------------------------------------ abilities
+
+  /** 2: the firecrackers go off in front of her; he reels if he's close and in front. */
+  private firecrackers(): void {
+    const p = this.player;
+    const b = this.boss;
+    const fw = _a.set(Math.sin(p.yaw), 0, Math.cos(p.yaw));
+    const at = _b.copy(p.ch.rig.chestW).addScaledVector(fw, 0.45);
+    this.fx.crackers(at.clone(), fw.clone());
+    this.cam.shake(0.3);
+    this.post.hitFlash(0.1, 0xffb070);
+    const to = _c1.subVectors(b.pos, p.pos).setY(0);
+    const dist = to.length();
+    const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(to.x, to.z) - p.yaw), Math.cos(Math.atan2(to.x, to.z) - p.yaw)));
+    if (this.state === "fight" && b.stunnable && dist <= ABILITY.crackers.range && ang <= ABILITY.crackers.arc) {
+      // Interrupts whatever he was doing (a pending blow on her is cancelled with it).
+      this.pending = null;
+      this.releaseHolds();
+      b.stun(ABILITY.crackers.stun[b.phase - 1], "mikiried");
+      this.fx.glyph.hide();
+      this.stats.stuns++;
+    }
+  }
+
+  /** 3: gone into the feathers: hidden, and moved to his back. */
+  private crowVanish(): void {
+    const p = this.player;
+    const b = this.boss;
+    this.fx.feathersBurst(p.pos, 90);
+    this.playerBody.setVisible(false);
+    this.pending = null;
+    this.releaseHolds();
+    // Measured from his body (the capsule leans with his pose), not his feet: the back cut must reach.
+    b.ch.rig.capsule(_b, _c2);
+    const back = _a.set(-Math.sin(b.yaw), 0, -Math.cos(b.yaw));
+    p.pos.set((_b.x + _c2.x) / 2, 0, (_b.z + _c2.z) / 2).addScaledVector(back, ABILITY.crow.behind);
+    p.pos.y = 0;
+    p.vel.set(0, 0, 0);
+    p.confine();
+    p.yaw = Math.atan2(b.pos.x - p.pos.x, b.pos.z - p.pos.z);
+    this.prevP.copy(p.pos);
+    if (this.state === "fight" && b.stunnable) {
+      b.stun(ABILITY.crow.window, "flinch", ABILITY.crow.turn);
+      this.fx.glyph.hide();
+    }
+  }
+
+  private crowAppear(): void {
+    const p = this.player;
+    p.step(0, this.wind, this.gameTime);
+    this.playerBody.resetCloth();
+    p.ch.rig.resetTrail();
+    this.playerBody.setVisible(true);
+    this.fx.feathersBurst(p.pos, 45);
+    this.audio.crowAppear();
+  }
+
+  /** Steady glows: purple fire on her blade, the heal's jade motes, his phase-2 rage. */
+  private auras(g: number): void {
+    const p = this.player;
+    const b = this.boss;
+    const fighting = this.state === "fight" || this.state === "deathblow" || this.state === "finisher";
+    // Curse: in fast, out over its last second.
+    const ct = p.abil.curseT;
+    const cWant = fighting && ct > 0 ? Math.min(1, ct / 1.0) : 0;
+    this.curseK += (cWant - this.curseK) * Math.min(1, g * (cWant > this.curseK ? 14 : 5));
+    const hWant = p.state === "heal" && fighting ? 1 : 0;
+    this.healK += (hWant - this.healK) * Math.min(1, g * (hWant > this.healK ? 6 : 2.5));
+    if (this.curseK > 0.01) {
+      this.fx.curseBlade(p.ch.rig.hiltW, p.ch.rig.tipW, g, this.curseK);
+      this.playerBody.setGlow(GLOW_CURSE, 0.3 * this.curseK, 0.08 * this.curseK);
+    }
+    if (this.healK > 0.01) {
+      this.fx.healMotes(p.ch.rig.hipsW, p.ch.rig.headW, g, this.healK);
+      if (this.curseK <= 0.01) this.playerBody.setGlow(GLOW_HEAL, 0.26 * this.healK, 0.05 * this.healK);
+    }
+    if (this.curseK <= 0.01 && this.healK <= 0.01) {
+      this.playerBody.setGlow(null);
+      this.fx.herLight.intensity = 0;
+    }
+    // Rage: builds through the rise, stays for the second life, drains at the end.
+    const alive = b.phase === 2 && b.state !== "finished" && b.state !== "dead";
+    const rWant = alive ? (b.state === "rise" ? clamp(b.stateT / 1.2, 0, 1) : 1) : 0;
+    this.rageK += (rWant - this.rageK) * Math.min(1, g * (rWant > this.rageK ? 3 : 1.2));
+    if (this.rageK > 0.01) {
+      const r = b.ch.rig;
+      this.fx.rage(r.hipsW, r.chestW, r.headW, b.yaw, g, this.rageK, this.gameTime);
+      this.bossBody.setGlow(GLOW_RAGE, 0.5 * this.rageK, 0.04 * this.rageK);
+    } else {
+      this.bossBody.setGlow(null);
+      this.fx.hisLight.intensity = 0;
+    }
+  }
+
   private drainEvents(): void {
     const au = this.audio;
     for (const e of this.player.events) {
@@ -1384,6 +1527,27 @@ export class Game {
         au.gourdTick();
       } else if (e === "sip") au.sip();
       else if (e === "gourdEmpty") au.gourdEmpty();
+      else if (e === "curseCast") {
+        this.stats.abilities.curse++;
+        au.curseIgnite();
+      } else if (e === "curseOn") {
+        const r = this.player.ch.rig;
+        this.fx.curseIgnite(r.hiltW, r.tipW);
+        this.post.hitFlash(0.08, 0x6a3ad0);
+      } else if (e === "crackersCast") {
+        this.stats.abilities.crackers++;
+        au.crackersThrow();
+      } else if (e === "crackers") this.firecrackers();
+      else if (e === "crowDive") {
+        this.stats.abilities.crow++;
+        au.crowDive();
+        this.fx.feathersBurst(this.player.pos, 60);
+      } else if (e === "crowVanish") this.crowVanish();
+      else if (e === "crowAppear") this.crowAppear();
+      else if (e.startsWith("denied:")) {
+        au.denied();
+        this.hud.denyAbility(e.slice(7));
+      }
       else if (e === "safetyRoll") au.dodge();
     }
     this.player.events.length = 0;
@@ -1576,6 +1740,9 @@ export class Game {
     this.post.fade += (dimTo - this.post.fade) * damp(6, dt);
     this.post.bars += (this.barsTarget - this.post.bars) * damp(4, dt);
     const pf = p.health / PLAYER_MAX.health;
+    const ab = p.abil;
+    this.hud.abilities(ABILITY_IDS.map((id) => ({ id, charge: ab.charge(id), burn: id === "curse" && ab.cursed })));
+    this.post.heat(_a.copy(b.ch.rig.chestW).add(this.interp.b), 2.3, this.rageK * 0.9, dt);
     this.hud.update(
       dt,
       { health: b.health, posture: b.posture, broken: b.state === "stagger", markers: b.markers, limited: vitalityRegen(b.health / BOSS_MAX.health) < 0.5 },

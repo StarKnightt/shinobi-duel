@@ -33,6 +33,22 @@ export class Fx {
   private lightT = 1;
   private lightPeak = 0;
   private readonly R = this.sparks.rand;
+  /** Rising additive motes that keep their colour: curse fire, heal motes, rage embers. */
+  readonly wisps = new Streaks(1800, "add");
+  /** Black crow feathers (normal blending), drifting down. */
+  readonly feathers = new Streaks(320, "ink");
+  /** Dark smoke that rises (the curse's black edge, the rage's heat haze, the crow's shadow). */
+  readonly haze = new Streaks(500, "ink");
+  /**
+   * Steady glows that travel with a fighter (curse / heal on her, rage on him). Always in the
+   * scene (intensity 0 when off) so turning one on never recompiles a shader.
+   */
+  readonly herLight = new THREE.PointLight(0x9a5cff, 0, 2.2, 2);
+  readonly hisLight = new THREE.PointLight(0xff3a28, 0, 2.6, 2);
+  /** Firecracker pops still to go off (seconds from now, where). */
+  private pops: { t: number; p: THREE.Vector3; big: boolean }[] = [];
+  /** Each firecracker crack (the game turns it into sound). */
+  onPop: ((big: boolean) => void) | null = null;
 
   constructor(scene: THREE.Scene) {
     this.sparks.drag = 1.6;
@@ -59,6 +75,23 @@ export class Fx {
     this.embers.gravity = -3.2;
     this.embers.drag = 1.1;
     this.embers.bounce = 0.35;
+    this.wisps.cooling = false;
+    this.wisps.gravity = 1.6;
+    this.wisps.drag = 2.4;
+    this.wisps.floorY = -10;
+    this.feathers.cooling = false;
+    this.feathers.gravity = -1.1;
+    this.feathers.drag = 3.2;
+    this.feathers.alpha = 0.92;
+    this.feathers.floorY = 0.02;
+    this.feathers.bounce = 0;
+    this.haze.cooling = false;
+    this.haze.gravity = 0.9;
+    this.haze.drag = 2.8;
+    this.haze.alpha = 0.3;
+    this.haze.floorY = -10;
+    this.haze.grow = 1.8;
+    scene.add(this.wisps.mesh, this.feathers.mesh, this.haze.mesh, this.herLight, this.hisLight);
     scene.add(this.embers.mesh, this.flecks.mesh, this.smoke.mesh, this.streak.mesh, this.sparks.mesh, this.ink.mesh, this.dust.mesh, this.splats.mesh, this.flash.mesh, this.glintFlash.mesh, this.dot.mesh, this.light);
   }
 
@@ -128,6 +161,148 @@ export class Fx {
     this.pulseLight(p, 22 * power, 0xff9a48, 0.17);
   }
 
+  // ------------------------------------------------------------------ abilities
+
+  /** 1, ignition: the curse runs up the blade from the hilt in a violet flare. */
+  curseIgnite(hilt: THREE.Vector3, tip: THREE.Vector3): void {
+    const R = this.R;
+    for (let i = 0; i < 60; i++) {
+      _p.lerpVectors(hilt, tip, R());
+      const a = R() * Math.PI * 2;
+      const sp = 0.6 + R() * 2.2;
+      const hot = R() < 0.3;
+      this.wisps.spawn(_p.x, _p.y, _p.z, Math.cos(a) * sp, 0.6 + R() * 1.6, Math.sin(a) * sp, 0.25 + R() * 0.3, 0.02 + R() * 0.03, 0.02, hot ? 1.8 : 0.6, hot ? 1.3 : 0.2, hot ? 2.6 : 1.3);
+    }
+    for (let i = 0; i < 10; i++) {
+      _p.lerpVectors(hilt, tip, R());
+      this.haze.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.6, 0.4 + R() * 0.5, (R() - 0.5) * 0.6, 0.6 + R() * 0.4, 0.06 + R() * 0.05, 0.05, 0.06, 0.02, 0.1);
+    }
+    this.flash.fire(_p.lerpVectors(hilt, tip, 0.5), 0.5, new THREE.Color(1.3, 0.6, 2.6), 0.14, 0, 0.2);
+  }
+
+  /**
+   * 1, burning: purple fire licking off the blade (pale at the heart, dark at the edges: a hot
+   * violet core and black-violet smoke) and its glow on her.
+   */
+  curseBlade(hilt: THREE.Vector3, tip: THREE.Vector3, dt: number, k: number): void {
+    const R = this.R;
+    // Sparse, peeling tongues (a dense stack of additive blobs on a still blade reads as a neon bar).
+    const n = Math.floor(dt * 120 * k + R());
+    for (let i = 0; i < n; i++) {
+      const u = Math.pow(R(), 0.7);
+      _p.lerpVectors(hilt, tip, 0.15 + u * 0.85);
+      _p.x += (R() - 0.5) * 0.09;
+      _p.z += (R() - 0.5) * 0.09;
+      const hot = R() < 0.18;
+      // Tongues: wide soft blobs that rise and thin; the hot ones small and pale.
+      const w = hot ? 0.012 + R() * 0.012 : 0.03 + R() * 0.035;
+      const life = hot ? 0.12 + R() * 0.12 : 0.22 + R() * 0.25;
+      this.wisps.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.5, 0.9 + R() * 1.1, (R() - 0.5) * 0.5, life, w, 0.035, hot ? 0.95 : 0.24, hot ? 0.75 : 0.06, hot ? 1.3 : 0.6);
+    }
+    if (R() < dt * 40 * k) {
+      _p.lerpVectors(hilt, tip, 0.2 + R() * 0.8);
+      this.haze.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.2, 0.4 + R() * 0.3, (R() - 0.5) * 0.2, 0.5 + R() * 0.3, 0.05 + R() * 0.05, 0.05, 0.035, 0.008, 0.06);
+    }
+    this.herLight.color.setHex(0x7a46e0);
+    this.herLight.position.lerpVectors(hilt, tip, 0.5);
+    this.herLight.intensity = 0.9 * k * (0.85 + 0.15 * Math.sin(performance.now() * 0.03));
+  }
+
+  /** 2: a fistful of firecrackers flung ahead: a flash, then a string of cracks, sparks and smoke. */
+  crackers(p: THREE.Vector3, dir: THREE.Vector3): void {
+    const R = this.R;
+    this.flash.fire(p, 1.1, new THREE.Color(12, 8, 4.5), 0.12, 0, 0.6);
+    this.pulseLight(p, 30, 0xffb060, 0.12);
+    for (let i = 0; i < 9; i++) {
+      _d.copy(dir).multiplyScalar(0.6 + R() * 2.4);
+      _d.x += (R() - 0.5) * 2.2;
+      _d.z += (R() - 0.5) * 2.2;
+      this.pops.push({ t: 0.04 + i * 0.055 + R() * 0.05, p: p.clone().add(_d).setY(0.2 + R() * 1.3), big: i === 0 || R() < 0.25 });
+    }
+  }
+
+  private pop(p: THREE.Vector3, big: boolean): void {
+    const R = this.R;
+    const n = big ? 60 : 34;
+    for (let i = 0; i < n; i++) {
+      const a = R() * Math.PI * 2;
+      const up = R() * 1.6 - 0.4;
+      const sp = 3 + R() * (big ? 7 : 5);
+      const hot = R() < 0.4;
+      this.sparks.spawn(p.x, p.y, p.z, Math.cos(a) * sp, up * sp * 0.6, Math.sin(a) * sp, 0.1 + R() * 0.25, 0.004 + R() * 0.006, 0.014, hot ? 14 : 10, hot ? 9 : 4.6, hot ? 4 : 1.2);
+    }
+    for (let i = 0; i < (big ? 5 : 3); i++) {
+      const v = 0.14 + R() * 0.08;
+      this.smoke.spawn(p.x, p.y, p.z, (R() - 0.5) * 1.2, 0.3 + R() * 0.6, (R() - 0.5) * 1.2, 0.8 + R() * 0.5, 0.14 + R() * 0.14, 0.05, v * 0.95, v, v * 1.12);
+    }
+    this.glintFlash.fire(p, big ? 0.75 : 0.5, new THREE.Color(9, 6, 3), 0.07, 0, big ? 0.6 : 0.3);
+    this.pulseLight(p, big ? 26 : 16, 0xffa850, 0.06);
+    this.onPop?.(big);
+  }
+
+  /** 3: a burst of black feathers and shadow where she was (or where she comes out). */
+  feathersBurst(p: THREE.Vector3, n = 70): void {
+    const R = this.R;
+    for (let i = 0; i < n * 0.6; i++) {
+      const a = R() * Math.PI * 2;
+      const sp = 1.8 + R() * 3.8;
+      const y = p.y + 0.5 + R() * 1.3;
+      const v = 0.02 + R() * 0.03;
+      this.feathers.spawn(p.x + Math.cos(a) * 0.2, y, p.z + Math.sin(a) * 0.2, Math.cos(a) * sp, 1.2 + R() * 2.6, Math.sin(a) * sp, 0.8 + R() * 0.7, 0.014 + R() * 0.012, 0.035, v, v, v * 1.3);
+    }
+    for (let i = 0; i < 14; i++) {
+      const a = R() * Math.PI * 2;
+      this.haze.spawn(p.x, p.y + 0.3 + R() * 1.2, p.z, Math.cos(a) * 1.2, 0.2 + R() * 0.5, Math.sin(a) * 1.2, 0.5 + R() * 0.4, 0.18 + R() * 0.16, 0.05, 0.02, 0.022, 0.04);
+    }
+  }
+
+  /** Gourd: soft jade motes rising round her body while the medicine takes. */
+  healMotes(hips: THREE.Vector3, head: THREE.Vector3, dt: number, k: number): void {
+    const R = this.R;
+    const n = Math.floor(dt * 110 * k + R());
+    for (let i = 0; i < n; i++) {
+      const a = R() * Math.PI * 2;
+      const r = 0.22 + R() * 0.24;
+      _p.lerpVectors(hips, head, R() * 1.1 - 0.4);
+      const v = 0.6 + R() * 0.6;
+      this.wisps.spawn(_p.x + Math.cos(a) * r, Math.max(0.05, _p.y), _p.z + Math.sin(a) * r, -Math.cos(a) * 0.1, 0.25 + R() * 0.35, -Math.sin(a) * 0.1, 0.7 + R() * 0.6, 0.011 + R() * 0.009, 0.004, 0.7 * v, 2.1 * v, 1.4 * v);
+    }
+    this.herLight.color.setHex(0x7fd8b0);
+    this.herLight.position.lerpVectors(hips, head, 0.5);
+    this.herLight.intensity = 0.8 * k;
+  }
+
+  /**
+   * Phase 2: red-black heat off his armour: embers rising off the plates, dark heat haze, and the
+   * eyes in the menpo burning (two tiny hot points a few cm in front of the face).
+   */
+  rage(hips: THREE.Vector3, chest: THREE.Vector3, head: THREE.Vector3, yaw: number, dt: number, k: number, t: number): void {
+    const R = this.R;
+    const n = Math.floor(dt * 60 * k + R());
+    for (let i = 0; i < n; i++) {
+      _p.lerpVectors(hips, head, R() * 1.05);
+      const a = R() * Math.PI * 2;
+      const r = 0.22 + R() * 0.26;
+      const hot = R() < 0.3;
+      this.wisps.spawn(_p.x + Math.cos(a) * r, _p.y, _p.z + Math.sin(a) * r, (R() - 0.5) * 0.4, 0.9 + R() * 1.4, (R() - 0.5) * 0.4, 0.6 + R() * 0.8, 0.008 + R() * 0.008, 0.05, hot ? 5 : 1.6, hot ? 0.9 : 0.1, hot ? 0.3 : 0.03);
+    }
+    if (R() < dt * 16 * k) {
+      _p.lerpVectors(hips, chest, R());
+      this.haze.spawn(_p.x + (R() - 0.5) * 0.5, _p.y, _p.z + (R() - 0.5) * 0.5, (R() - 0.5) * 0.3, 0.6 + R() * 0.4, (R() - 0.5) * 0.3, 0.7 + R() * 0.5, 0.16 + R() * 0.14, 0.05, 0.03, 0.004, 0.004);
+    }
+    // Eyes: a pair of short-lived hot points, re-laid every step so they track the head.
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    const flick = 0.8 + 0.2 * Math.sin(t * 23) * Math.sin(t * 7.3);
+    for (const sd of [-1, 1]) {
+      const ex = head.x + fx * 0.15 + fz * 0.042 * sd;
+      const ez = head.z + fz * 0.15 - fx * 0.042 * sd;
+      this.wisps.spawn(ex, head.y + 0.015, ez, 0, 0, 0, 0.05, 0.03 * k, 0.02, 14 * flick * k, 2.2 * flick * k, 0.8 * k);
+    }
+    this.hisLight.position.copy(chest);
+    this.hisLight.intensity = 1.1 * k * (0.75 + 0.25 * Math.sin(t * 3.1) * Math.sin(t * 1.7 + 1));
+  }
+
   /** Regular block: dull, sparse sparks. */
   block(p: THREE.Vector3, out: THREE.Vector3): void {
     const R = this.R;
@@ -150,6 +325,28 @@ export class Fx {
     }
     this.flash.fire(p, 0.9, new THREE.Color(6, 3.4, 1.6), 0.12, 0, 0.35);
     this.pulseLight(p, 18, 0xff9a40);
+  }
+
+  /**
+   * Her cut lands on him: a fan of dark blood-ink thrown along the blade's travel (no gore, it
+   * reads as ink), a few lacquer chips, and with the curse a lick of violet fire off the wound.
+   */
+  cutSpray(p: THREE.Vector3, out: THREE.Vector3, k: number, cursed: boolean): void {
+    const R = this.R;
+    const n = Math.round(30 * k);
+    for (let i = 0; i < n; i++) {
+      coneDir(out, 0.75, R, _d);
+      const sp = 2.5 + R() * 5.5 * k;
+      this.ink.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp + 1.2, _d.z * sp, 0.35 + R() * 0.4, 0.01 + R() * 0.018, 0.025, 0.32, 0.02, 0.03);
+    }
+    if (cursed) {
+      for (let i = 0; i < 24; i++) {
+        coneDir(out, 1.2, R, _d);
+        const sp = 0.8 + R() * 2.2;
+        const hot = R() < 0.25;
+        this.wisps.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp + 0.8, _d.z * sp, 0.2 + R() * 0.25, 0.018 + R() * 0.02, 0.06, hot ? 1.4 : 0.4, hot ? 1.0 : 0.12, hot ? 2.0 : 0.95);
+      }
+    }
   }
 
   /** Player is struck: a dark-red stylized burst (no gore). */
@@ -280,6 +477,17 @@ export class Fx {
     this.glintFlash.update(dt);
     this.lightT += dt;
     this.light.intensity = this.lightPeak * Math.exp(-this.lightT / this.lightTau);
+    this.wisps.update(dt);
+    this.feathers.update(dt);
+    this.haze.update(dt);
+    for (let i = this.pops.length - 1; i >= 0; i--) {
+      const q = this.pops[i];
+      q.t -= dt;
+      if (q.t <= 0) {
+        this.pops.splice(i, 1);
+        this.pop(q.p, q.big);
+      }
+    }
   }
 
   /** Game-time effects (slow down with the finisher). */
@@ -296,6 +504,12 @@ export class Fx {
     this.ink.clear();
     this.dust.clear();
     this.splats.clear();
+    this.wisps.clear();
+    this.feathers.clear();
+    this.haze.clear();
+    this.pops.length = 0;
+    this.herLight.intensity = 0;
+    this.hisLight.intensity = 0;
     this.glyph.hide();
     this.dot.active = false;
   }

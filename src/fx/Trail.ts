@@ -40,7 +40,8 @@ export class Trail {
           gl_Position = projectionMatrix * viewMatrix * vec4(position, 1.0); }`,
       fragmentShader: /* glsl */ `
         uniform vec3 uC; varying float vA; varying float vEdge;
-        void main() { float a = vA * vA * mix(0.25, 1.0, vEdge);
+        // Bright along the cutting edge, gone toward the hilt: an arc of light, not a flat sheet.
+        void main() { float a = vA * vA * vA * vEdge * vEdge * 1.15;
           gl_FragColor = vec4(uC * a, 1.0); }`,
       transparent: true,
       depthWrite: false,

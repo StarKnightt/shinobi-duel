@@ -58,10 +58,11 @@ const SOUNDS = {
   voiceKiai: [1, "at(0.1, () => a.voice.bossKiai(0.1, true))"],
   battleCry: [2.5, "at(0.1, () => a.voice.bossBattleCry(0.1))"],
   ambience: [12, "a.attachAmb = 1"],
-  musicTitle: [14, "a.debugScene('title')"],
+  musicTitle: [20, "a.debugScene('title')"],
   musicFight: [10, "a.debugScene('fight'); a.intensity = 0.55; a.taikoTempo = 84"],
   musicFightHot: [10, "a.debugScene('fight'); a.intensity = 1.1; a.taikoTempo = 130"],
-  victory: [6, "a.debugScene('fight'); at(0.2, () => a.debugScene('victory'))"],
+  musicPhase2: [12, "a.debugScene('fight'); a.intensity = 1.1; a.taikoTempo = 144; a.music.phase = 2"],
+  victory: [14, "a.debugScene('fight'); at(0.2, () => a.debugScene('victory'))"],
   defeat: [5, "a.debugScene('defeat')"],
   // Worst case: a deflect chain over a hot fight with a posture break on top.
   stress: [4, "a.debugScene('fight'); a.intensity = 1.1; a.taikoTempo = 130; for (let i = 0; i < 4; i++) at(0.2 + i * 0.3, () => a.clang(1)); at(1.4, () => a.drum(true)); at(1.45, () => a.hitFlesh(true)); at(1.5, () => a.whoosh(true, 'boss'))"],

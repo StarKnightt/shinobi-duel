@@ -8,11 +8,12 @@
  * the recovery; the end of a step dodge can be cancelled into an attack, guard or jump.
  */
 import * as THREE from "three";
-import type { Input } from "../core/Input";
+import type { Action, Input } from "../core/Input";
 import { approachAngle, clamp, damp } from "../core/math";
 import { cueOf } from "../chars/animEvents";
 import type { Fighter } from "../chars/Fighter";
 import { ARENA_HALF, RIDGE_Z } from "../world/Arena";
+import { ABILITY, Abilities, type AbilityId } from "./Abilities";
 import { DIFFICULTY } from "./difficulty";
 
 export type PState =
@@ -33,7 +34,9 @@ export type PState =
   | "revive"
   | "deathblow"
   | "finisher"
-  | "victory";
+  | "victory"
+  | "tool"
+  | "crow";
 
 /** Gameplay data of one swing; its timing comes from the animation events. */
 export interface SwingSpec {
@@ -81,7 +84,13 @@ const HIT_GUARD = 0.2;
 const REVIVE_GRACE = 0.6;
 
 /** How long a press waits to fire when the player is busy (recovery, hitstun, a swing). */
-export const BUFFER = { attack: 0.35, dodge: 0.3, jump: 0.25, heal: 0.3, block: 0.12 };
+export const BUFFER = { attack: 0.35, dodge: 0.3, jump: 0.25, heal: 0.3, block: 0.12, ability: 0.3 };
+
+const ABILITY_KEYS: readonly [Action, AbilityId][] = [
+  ["ability1", "curse"],
+  ["ability2", "crackers"],
+  ["ability3", "crow"],
+];
 
 /** Posture regen (DIFFICULTY.playerPostureRegen per second) starts after POSTURE_DELAY without posture damage. */
 const POSTURE_DELAY = 1.0;
@@ -95,7 +104,8 @@ export function vitalityRegen(frac: number): number {
 const WALK = 2.9;
 const GUARD_WALK = 1.7;
 const HEAL_WALK = 1.2;
-const RUN = 5.8;
+/** Sprint (hold Shift after the step): well clear of the walk, a real burst across the roof. */
+const RUN = 7.6;
 const GRAVITY = 15;
 const JUMP_V = 4.6;
 const DODGE_T = 0.42;
@@ -125,6 +135,12 @@ export class Player {
   mikiriArmed = false;
   /** Kicks used in the current jump. */
   kicks = 0;
+  /** Abilities (keys 1-3): recharges and the curse timer. */
+  readonly abil = new Abilities();
+  /** The ability being cast in the `tool` / `crow` state. */
+  toolKind: AbilityId | null = null;
+  private toolFired = false;
+  private crowStage = 0;
   private healLeft = 0;
   private sipped = false;
   private grace = 0;
@@ -157,6 +173,8 @@ export class Player {
     this.grace = 0;
     this.kicks = 0;
     this.mikiriArmed = false;
+    this.abil.reset();
+    this.toolKind = null;
     this.events.length = 0;
     this.clipNow = "";
     this.setClip("idle", 0);
@@ -183,6 +201,7 @@ export class Player {
       s === "deathblow" ||
       s === "finisher" ||
       s === "victory" ||
+      (s === "crow" && this.stateT < ABILITY.crow.end) ||
       this.grace > 0
     );
   }
@@ -219,6 +238,7 @@ export class Player {
     this.stateT += dt;
     this.postureIdle += dt;
     if (this.grace > 0) this.grace -= dt;
+    this.abil.tick(dt);
     const s = this.state;
     // Posture: no recovery while attacking, sprinting or staggered; faster behind a raised
     // guard; slower the lower your vitality.
@@ -255,6 +275,7 @@ export class Player {
           if (this.gourd > 0) return this.startHeal();
           this.events.push("gourdEmpty");
         }
+        if (this.tryAbility(input)) return;
         if (this.freshGuard(input)) return this.startDeflect();
       }
       if (this.running && (!input || !input.isHeld("dodge") || !moving)) this.running = false;
@@ -279,6 +300,7 @@ export class Player {
         if (input.consume("attack", BUFFER.attack)) return this.startSwing(SWINGS[0], 0);
         if (this.freshGuard(input, BUFFER.block)) return this.startDeflect();
         if (this.stateT > 0.32 && input.consume("jump", BUFFER.jump)) return this.startJump();
+        if (this.tryAbility(input)) return;
       }
     } else if (s === "attack" && this.swing) {
       const sw = this.swing;
@@ -289,6 +311,7 @@ export class Player {
         if (input.consume("dodge", BUFFER.dodge)) return dodgeNow();
         if (this.freshGuard(input, BUFFER.block)) return this.startDeflect();
         if (input.consume("jump", BUFFER.jump)) return this.startJump();
+        if (this.tryAbility(input)) return;
       }
       // Magnetism: close the gap during the wind-up and swing.
       let lunge = 0;
@@ -310,6 +333,7 @@ export class Player {
       if (input && this.stateT > 0.08 && input.consume("attack", BUFFER.attack)) return this.startSwing(SWINGS[0], 0);
       if (input && this.stateT > 0.05 && input.consume("dodge", BUFFER.dodge)) return dodgeNow();
       if (input && this.stateT > 0.05 && input.consume("jump", BUFFER.jump)) return this.startJump();
+      if (input && this.stateT > 0.05 && this.tryAbility(input)) return;
       // A re-press while the flick plays restarts it (a fresh window is granted by Input).
       if (input && this.stateT > 0.04 && this.freshGuard(input)) return this.startDeflect();
       if (this.stateT > (s === "deflect" ? 0.26 : 0.3)) {
@@ -394,6 +418,49 @@ export class Player {
         this.enter("move");
         this.setClip("idle", 0.15);
       }
+    } else if (s === "tool") {
+      // Casting (1: the curse takes the blade, 2: the firecrackers leave her hand).
+      this.vel.multiplyScalar(Math.exp(-dt * 10));
+      if (locked || dist < GUARD_FACE) this.yaw = approachAngle(this.yaw, faceYaw, dt * 12);
+      const curse = this.toolKind === "curse";
+      const at = curse ? ABILITY.curse.ignite : ABILITY.crackers.fire;
+      const end = curse ? ABILITY.curse.cast : ABILITY.crackers.cast;
+      if (!this.toolFired && this.stateT >= at) {
+        this.toolFired = true;
+        if (curse) this.abil.curseT = ABILITY.curse.duration;
+        this.events.push(curse ? "curseOn" : "crackers");
+      }
+      // Once it's out of her hand the tail of the motion cancels into guard, a step or a cut.
+      if (this.toolFired && input && this.stateT > end * 0.6) {
+        if (this.freshGuard(input, BUFFER.block)) return this.startDeflect();
+        if (input.consume("dodge", BUFFER.dodge)) return dodgeNow();
+        if (input.consume("attack", BUFFER.attack)) return this.startSwing(SWINGS[0], 0);
+      }
+      if (this.stateT >= end) {
+        this.enter("move");
+        this.setClip("idle", 0.15);
+      }
+    } else if (s === "crow") {
+      // Into the feathers (the game hides her and moves her behind him), out at his back.
+      this.vel.multiplyScalar(Math.exp(-dt * 12));
+      const c = ABILITY.crow;
+      if (this.crowStage === 0 && this.stateT >= c.vanish) {
+        this.crowStage = 1;
+        this.events.push("crowVanish");
+      }
+      if (this.crowStage === 1 && this.stateT >= c.appear) {
+        this.crowStage = 2;
+        this.yaw = faceYaw;
+        this.events.push("crowAppear");
+      }
+      if (this.crowStage === 2) {
+        this.yaw = approachAngle(this.yaw, faceYaw, dt * 16);
+        if (input && input.consume("attack", BUFFER.attack)) return this.startSwing(SWINGS[0], 0);
+      }
+      if (this.stateT >= c.end) {
+        this.enter("move");
+        this.setClip("idle", 0.1);
+      }
     } else if (s === "mikiri") {
       this.vel.multiplyScalar(Math.exp(-dt * 14));
       this.yaw = approachAngle(this.yaw, faceYaw, dt * 10);
@@ -437,6 +504,38 @@ export class Player {
 
     this.pos.addScaledVector(this.vel, dt);
     this.confine();
+  }
+
+  /** A buffered ability key: cast it if it's charged (and, for the curse, not already burning). */
+  private tryAbility(input: Input): boolean {
+    for (const [a, id] of ABILITY_KEYS) {
+      if (!input.consume(a, BUFFER.ability)) continue;
+      if (!this.abil.ready(id) || (id === "curse" && this.abil.cursed)) {
+        this.events.push(`denied:${id}`);
+        continue;
+      }
+      this.abil.spend(id);
+      this.startTool(id);
+      return true;
+    }
+    return false;
+  }
+
+  private startTool(id: AbilityId): void {
+    this.running = false;
+    this.toolKind = id;
+    this.toolFired = false;
+    this.crowStage = 0;
+    this.swing = null;
+    if (id === "crow") {
+      this.enter("crow");
+      this.setClip("crow", 0.05);
+      this.events.push("crowDive");
+    } else {
+      this.enter("tool");
+      this.setClip(id === "curse" ? "curse" : "tool", 0.06);
+      this.events.push(id === "curse" ? "curseCast" : "crackersCast");
+    }
   }
 
   /** A guard press this step (or buffered `buffer` s): the flick into a deflect. */

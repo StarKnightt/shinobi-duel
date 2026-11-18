@@ -61,4 +61,6 @@ export interface Fighter {
   /** Debug (?debug=anim): the body's clips, and posing one at a clip time. */
   listClips(): { name: string; dur: number; loop: boolean }[];
   scrub(clip: string, t: number): void;
+  /** Body glow (skinned bodies): colour × k on the rim, `body` spreads it inward. null clears. */
+  setGlow?(color: THREE.Color | null, k?: number, body?: number): void;
 }

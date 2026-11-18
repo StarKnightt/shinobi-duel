@@ -108,6 +108,31 @@ void mainUv(inout vec2 uv) {
 }`;
 
 const _sp = new THREE.Vector3();
+const _hp = new THREE.Vector3();
+
+/**
+ * Phase-2 rage: heat shimmer round the general. A rising, wobbling refraction inside a tall
+ * ellipse over his body (screen space), strongest at its heart, gone at its rim.
+ */
+const HEAT_FRAG = /* glsl */ `
+uniform vec2 uCenter;
+uniform vec2 uSize;
+uniform float uK;
+uniform float uTime;
+float hh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float hn(vec2 p) {
+  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hh(i), hh(i + vec2(1, 0)), f.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), f.x), f.y);
+}
+void mainUv(inout vec2 uv) {
+  if (uK <= 0.0) return;
+  vec2 d = (uv - uCenter) * vec2(aspect, 1.0) / uSize;
+  float m = 1.0 - smoothstep(0.35, 1.0, length(d));
+  if (m <= 0.0) return;
+  vec2 q = uv * vec2(aspect, 1.0) * 38.0 + vec2(0.0, -uTime * 2.6);
+  vec2 o = vec2(hn(q) - 0.5, hn(q + 17.3) - 0.5);
+  uv += o * 0.0045 * uK * m;
+}`;
 
 class ShockEffect extends Effect {
   constructor() {
@@ -117,6 +142,22 @@ class ShockEffect extends Effect {
         ["uT", new THREE.Uniform(1)],
         ["uAmp", new THREE.Uniform(0.02)],
         ["uSize", new THREE.Uniform(0.2)],
+      ]),
+    });
+  }
+  u(name: string): THREE.Uniform {
+    return this.uniforms.get(name)!;
+  }
+}
+
+class HeatEffect extends Effect {
+  constructor() {
+    super("HeatEffect", HEAT_FRAG, {
+      uniforms: new Map<string, THREE.Uniform>([
+        ["uCenter", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
+        ["uSize", new THREE.Uniform(new THREE.Vector2(0.2, 0.35))],
+        ["uK", new THREE.Uniform(0)],
+        ["uTime", new THREE.Uniform(0)],
       ]),
     });
   }
@@ -157,6 +198,8 @@ export class Post {
   private readonly vignette: VignetteEffect;
   private readonly ao: N8AOPostPass;
   private readonly shockFx = new ShockEffect();
+  private readonly heatFx = new HeatEffect();
+  private heatT = 0;
   private shockT = 1;
   private shockDur = 0.3;
   private readonly shockAt = new THREE.Vector3();
@@ -184,7 +227,7 @@ export class Post {
     this.ao.configuration.gammaCorrection = false;
     this.ao.configuration.halfRes = true;
     this.composer.addPass(this.ao);
-    this.composer.addPass(new EffectPass(camera, this.shockFx));
+    this.composer.addPass(new EffectPass(camera, this.shockFx, this.heatFx));
 
     this.bloom = new BloomEffect({
       mipmapBlur: true,
@@ -237,6 +280,31 @@ export class Post {
   }
 
   private camera: THREE.Camera | null = null;
+
+  /**
+   * Heat shimmer over a body: `at` is its centre (world), `height` its height in metres, `k` 0..1.
+   * Call every frame while it should show (k = 0 turns it off).
+   */
+  heat(at: THREE.Vector3, height: number, k: number, dt: number): void {
+    const u = this.heatFx;
+    this.heatT += dt;
+    u.u("uTime").value = this.heatT;
+    if (k <= 0 || !this.camera) {
+      u.u("uK").value = 0;
+      return;
+    }
+    const p = _hp.copy(at).project(this.camera);
+    if (p.z >= 1) {
+      u.u("uK").value = 0;
+      return;
+    }
+    const cam = this.camera as THREE.PerspectiveCamera;
+    const dist = Math.max(0.5, cam.position.distanceTo(at));
+    const sh = (height / (2 * dist * Math.tan(THREE.MathUtils.degToRad((cam.fov ?? 50) / 2)))) * 1.0;
+    (u.u("uCenter").value as THREE.Vector2).set(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
+    (u.u("uSize").value as THREE.Vector2).set(sh * 0.42, sh * 0.62);
+    u.u("uK").value = k;
+  }
 
   kickAberration(amount: number): void {
     this.aberration = Math.max(this.aberration, amount);

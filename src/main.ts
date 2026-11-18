@@ -15,7 +15,8 @@ wavedash.ready();
 const bodies = loadBodies({ player: game.shinobi, boss: game.general }, (who, body) => game.useBody(who, body));
 if (new URLSearchParams(location.search).get("debug") === "anim") void import("./debug/AnimDebug").then((m) => m.mountAnimDebug(game));
 
-type SceneName = "title" | "fight" | "thrust" | "overhead" | "deflect" | "break" | "finisher" | "finisher2" | "victory" | "portrait" | "portrait2" | "closeP" | "closeB" | "closeP2";
+type SceneName = "title" | "fight" | "thrust" | "overhead" | "deflect" | "break" | "finisher" | "finisher2" | "victory" | "portrait" | "portrait2" | "closeP" | "closeB" | "closeP2"
+  | "curse" | "curseHit" | "crackers" | "crow" | "crow2" | "phase2" | "heal";
 
 function until(pred: () => boolean, max = 6, dt = 1 / 60): boolean {
   for (let t = 0; t < max; t += dt) {
@@ -66,6 +67,48 @@ function scene(name: SceneName): Record<string, unknown> {
       game.step(0.1);
       break;
     }
+    // Abilities, the phase-2 rage and the heal (screenshots of the new pass).
+    case "curse":
+    case "curseHit": {
+      close(2.4);
+      game.input.press("ability1");
+      game.input.release("ability1");
+      game.step(name === "curse" ? 1.6 : 0.6);
+      if (name === "curseHit") {
+        b.stun(3, "whiff");
+        game.input.press("attack");
+        game.input.release("attack");
+        const n = s.playerHits;
+        until(() => s.playerHits > n, 2, 1 / 120);
+        game.step(2 / 60);
+      }
+      break;
+    }
+    case "crackers":
+      close(3);
+      game.input.press("ability2");
+      game.input.release("ability2");
+      game.step(0.36);
+      break;
+    case "crow":
+    case "crow2":
+      close(2.6);
+      game.input.press("ability3");
+      game.input.release("ability3");
+      game.step(name === "crow" ? 0.2 : 0.42);
+      break;
+    case "phase2":
+      close(3.2);
+      game.forcePhase2();
+      game.step(2.2);
+      break;
+    case "heal":
+      close(4.2);
+      game.player.health = 40;
+      game.input.press("heal");
+      game.input.release("heal");
+      game.step(0.55);
+      break;
     case "finisher2":
       scene("break");
       game.bot.deflect = false;

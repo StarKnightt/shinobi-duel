@@ -573,6 +573,102 @@ export class GameAudio {
     this.music.odaiko(t + 0.05, 0.9);
   }
 
+  // ------------------------------------------------------------------ abilities and menu
+
+  /** 1: the curse takes the blade: a dark inhale, a low detuned drone that swells, a hiss of fire. */
+  curseIgnite(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.p.in;
+    m.noiseHit(d, t, 0.5, "bandpass", 260, 0.7, 0.22, { to: 1400, shape: 0.7, verb: 0.3 });
+    for (const [f, dt] of [[73.4, 0], [110, 6], [146.8, -7], [220, 4]] as const) {
+      m.osc(d, t + 0.05, f, f * 0.98, 1.4, 0.07, { type: "sawtooth", attack: 0.25, verb: 0.5, detune: dt });
+    }
+    m.noiseHit(d, t + 0.18, 0.9, "highpass", 3200, 0.6, 0.06, { verb: 0.2 });
+    m.osc(d, t + 0.16, 880, 440, 0.6, 0.025, { type: "triangle", attack: 0.02, verb: 0.6 });
+  }
+
+  /** 1: a cursed cut landing: the fire bites (a hiss and a low throb under the flesh hit). */
+  curseBite(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.c.in;
+    m.noiseHit(d, t, 0.28, "bandpass", 2400, 0.8, 0.12, { to: 900, verb: 0.25 });
+    m.osc(d, t, 98, 55, 0.4, 0.2, { type: "sawtooth", attack: 0.004, verb: 0.3 });
+  }
+
+  /** 2: the throw: cloth, a fuse spitting. */
+  crackersThrow(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.p.in;
+    m.noiseHit(d, t, 0.16, "bandpass", 1300, 0.9, 0.16, { to: 2600, shape: 0.4 });
+    m.noiseHit(d, t + 0.02, 0.12, "highpass", 5200, 1.2, 0.08);
+  }
+
+  /** 2: one firecracker: a hard dry crack (loud, broadband, short), a paper snap and the roof's slap back. */
+  crackerPop(big: boolean): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.c.in;
+    const g = big ? 1 : 0.62;
+    const p = rand(0.85, 1.2);
+    m.noiseHit(d, t, 0.012, "highpass", 900, 0.5, 0.9 * g, { attack: 0.0003 });
+    m.noiseHit(d, t, 0.05, "bandpass", 2200 * p, 0.8, 0.45 * g, { verb: 0.45 });
+    m.osc(d, t, 160 * p, 60, 0.08, 0.5 * g, { attack: 0.0005 });
+    m.noiseHit(d, t + 0.006, 0.03, "bandpass", 5200 * p, 2, 0.12 * g);
+    if (big) m.duck(0.35, 0.05, 0.3);
+  }
+
+  /** 3: into the feathers: a rush of wings (flutter grains), a low breath of shadow. */
+  crowDive(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.p.in;
+    for (let i = 0; i < 9; i++) m.noiseHit(d, t + i * 0.028 + rand(0, 0.01), 0.05, "bandpass", rand(700, 1400), 1.4, 0.13 * (1 - i / 11), { verb: 0.2 });
+    m.noiseHit(d, t, 0.42, "lowpass", 600, 0.7, 0.18, { to: 180, verb: 0.35 });
+    m.osc(d, t, 330, 180, 0.35, 0.03, { type: "triangle", verb: 0.5 });
+  }
+
+  /** 3: out at his back: a single hard wingbeat and a cloth snap. */
+  crowAppear(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    const d = m.em.p.in;
+    m.noiseHit(d, t, 0.09, "bandpass", 900, 0.9, 0.26, { verb: 0.25 });
+    m.noiseHit(d, t + 0.05, 0.08, "bandpass", 1600, 1.1, 0.14);
+  }
+
+  /** An ability key while it is still recharging: a muted wooden tick. */
+  denied(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    m.osc(m.em.p.in, t, 240, 200, 0.06, 0.12, { type: "triangle" });
+  }
+
+  /** Menu: a soft koto pluck on hover / move. */
+  uiMove(): void {
+    if (!this.ctx) return;
+    this.pluck(this.mix.now, 0.32);
+  }
+
+  /** Menu: a choice made: a bright pluck and a small bell. */
+  uiSelect(): void {
+    if (!this.ctx) return;
+    const m = this.mix;
+    const t = m.now;
+    this.pluck(t, 0.6);
+    m.osc(m.em.c.in, t + 0.01, 1318.5, 1318.5, 1.1, 0.035, { attack: 0.003, verb: 0.5 });
+    m.osc(m.em.c.in, t + 0.01, 1977, 1977, 0.7, 0.012, { attack: 0.003, verb: 0.5 });
+  }
+
   /** Take-off: cloth snap and a push off the tiles. */
   jump(): void {
     if (!this.ctx) return;

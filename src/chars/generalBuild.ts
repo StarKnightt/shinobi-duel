@@ -68,8 +68,8 @@ export function buildGeneral(r: Rig, d: RigDims): GeneralParts {
       ),
       rim,
     );
-  const lameT = lameSet("#171213", "#d4561d", 201, { cols: 22 });
-  const lameGoldT = lameSet("#171213", "#d4561d", 202, { cols: 22, cross: true, gold: true });
+  const lameT = lameSet("#171213", "#7e171b", 201, { cols: 22 });
+  const lameGoldT = lameSet("#171213", "#7e171b", 202, { cols: 22, cross: true, gold: true });
   const lameFineT = lameSet("#141012", "#c84c1a", 203, { cols: 40 });
   const lame = lacquer(lameT, [3, 1]);
   const lameGold = lacquer(lameGoldT, [3, 1]);
@@ -82,14 +82,14 @@ export function buildGeneral(r: Rig, d: RigDims): GeneralParts {
     withSet(new THREE.MeshPhysicalMaterial({ color: 0x9a9090, roughness: 0.28, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.14 }), ironSet("#0f0d0d", 205, { rust: 0.1 }), [1, 1], 0.6),
     1.2,
   );
-  const gold = rimLit(new THREE.MeshStandardMaterial({ color: 0xc99a46, metalness: 1, roughness: 0.3, emissive: 0x2a1604, emissiveIntensity: 0.4 }), 1.0);
+  const gold = rimLit(new THREE.MeshStandardMaterial({ color: 0xb3a68a, metalness: 1, roughness: 0.32, emissive: 0x140e06, emissiveIntensity: 0.3 }), 1.0);
   const redIron = rimLit(
     withSet(new THREE.MeshPhysicalMaterial({ color: 0xc8c0bc, roughness: 0.38, metalness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.2 }), ironSet("#7a1510", 206, { rust: 0.3 }), [1, 1], 0.8),
     1.1,
   );
   const mail = rimLit(withSet(new THREE.MeshStandardMaterial({ metalness: 0.55, roughness: 0.5, color: 0xffffff }), mailSet(207), [4, 4], 1.4), 1.0);
   const hakama = rimLit(withSet(new THREE.MeshStandardMaterial({ roughness: 0.95, side: THREE.DoubleSide }), clothSet("#3c2420", 208, { folds: 12, patches: 1, grime: 1.1 }), [2, 1.4], 1.3), 1.0);
-  const lace = rimLit(new THREE.MeshStandardMaterial({ color: 0xd4561d, roughness: 0.7 }), 1.0);
+  const lace = rimLit(new THREE.MeshStandardMaterial({ color: 0x7e171b, roughness: 0.7 }), 1.0);
   const whiteHair = rimLit(new THREE.MeshStandardMaterial({ color: 0xd9d2c4, roughness: 0.9 }), 0.8);
   const leather = rimLit(new THREE.MeshStandardMaterial({ color: 0x1b1412, roughness: 0.55 }), 1.0);
   const shadowFace = new THREE.MeshStandardMaterial({ color: 0x050404, roughness: 1 });

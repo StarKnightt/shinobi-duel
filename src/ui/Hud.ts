@@ -25,15 +25,37 @@ const CSS = /* css */ `
 #title .t-latin { width: min(17vw, 250px); height: auto; margin-top: 1.8vh; opacity: 0.88; }
 #title .t-seal { position: absolute; right: -4.4vh; bottom: 3vh; width: 4vh; height: auto; z-index: 2; }
 #title .press { position: absolute; right: 7vw; bottom: 9vh; height: 30px; width: auto; opacity: 0.8; animation: breathe 3.6s ease-in-out infinite; }
-#title .keys { position: absolute; left: 4vw; bottom: 7vh; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; opacity: 0.72; width: max-content; }
-#title .keys img { height: min(2.6vh, 22px); width: auto; flex: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+/* Controls: a quiet two-column table, keys in bone white on the left, what they do dimmer on the
+   right; no boxes, no borders (ART_DIRECTION.md "Never"). A thin ink rule heads it. */
+#title .keys { position: absolute; left: 4vw; bottom: 7vh; display: grid; grid-template-columns: auto auto; column-gap: min(1.6vw, 22px); row-gap: min(0.55vh, 6px); align-items: center; width: max-content; opacity: 0.9; }
+#title .keys .rule { grid-column: 1 / span 2; height: 8px; width: min(15vw, 210px); opacity: 0.55; margin-bottom: 4px; }
+#title .keys .kc { justify-self: end; height: min(2.3vh, 20px); width: auto; opacity: 0.95; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+#title .keys .kl { justify-self: start; height: min(2.3vh, 20px); width: auto; opacity: 0.8; filter: drop-shadow(0 0 4px rgba(0,0,0,0.95)) drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+/* A soft dark falloff behind the table so it reads over lit snow (a shadow, not a box). */
+#title .keys::before { content: ""; position: absolute; left: -4vw; right: -6vw; top: -4vh; bottom: -5vh; z-index: -1; background: radial-gradient(ellipse at 30% 55%, rgba(4,6,10,0.55), rgba(4,6,10,0) 70%); pointer-events: none; }
+#title .diff .hint { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); height: min(1.9vh, 16px); width: auto; opacity: 0.55; margin-top: 2px; }
+/* Intro: the night first, then the title brushes in, the controls and the choice after it. */
+#title .veil { position: absolute; inset: 0; background: #04060a; opacity: 0; }
+#title.intro .veil { animation: veilOut 2.2s ease-out both; }
+#title.intro .t-block { animation: tIn 2.4s cubic-bezier(.2,.7,.2,1) 0.7s both; }
+#title.intro .keys { animation: kIn 1.4s ease 2.0s both; }
+#title.intro .diff { animation: dIn 1.2s ease 2.4s both; }
+#title.intro .press.begin { animation: pIn 1.2s ease 3.0s both, breathe 3.6s ease-in-out 4.2s infinite; }
+@keyframes veilOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes tIn { from { opacity: 0; transform: translateY(2.5vh); filter: blur(6px) } to { opacity: 1; transform: none; filter: none } }
+@keyframes kIn { from { opacity: 0; transform: translateX(-1.5vw) } to { opacity: 0.9; transform: none } }
+@keyframes dIn { from { opacity: 0; transform: translate(-50%, 1.2vh) } to { opacity: 1; transform: translate(-50%, 0) } }
+@keyframes pIn { from { opacity: 0 } to { opacity: 0.8 } }
 /* the begin prompt is clickable; its mousedown bubbles to Input as a title "any key" press */
 #title:not(.hidden) .press.begin { pointer-events: auto; cursor: pointer; }
 #title .press.begin:hover { animation: none; opacity: 1; filter: drop-shadow(0 0 6px rgba(255,140,60,0.45)); }
 @keyframes breathe { 0%,100% { opacity: 0.35 } 50% { opacity: 0.85 } }
 /* difficulty: three brushed choices, the chosen one underlined in crimson ink */
 #title .diff { position: absolute; left: 50%; bottom: 8.5vh; transform: translateX(-50%); display: flex; align-items: flex-end; gap: min(3.2vw, 44px); }
-#title .diff .opt { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 6px 12px; opacity: 0.5; cursor: pointer; transition: opacity 0.25s ease; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.85)); }
+#title .diff .opt { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 6px 12px; opacity: 0.5; cursor: pointer; transition: opacity 0.25s ease, transform 0.35s cubic-bezier(.2,.8,.3,1); filter: drop-shadow(0 1px 4px rgba(0,0,0,0.85)); }
+#title .diff .opt:hover { transform: translateY(-3px); }
+#title .diff .opt.pick { animation: pick 0.45s cubic-bezier(.2,.8,.3,1); }
+@keyframes pick { 0% { transform: scale(1) } 30% { transform: scale(1.12) translateY(-3px) } 100% { transform: scale(1) } }
 #title:not(.hidden) .diff .opt { pointer-events: auto; }
 #title .diff .opt:hover { opacity: 0.8; }
 #title .diff .opt:not(.on):hover .u { opacity: 0.35; transform: scaleX(0.7); }
@@ -77,6 +99,24 @@ const CSS = /* css */ `
 #playerbar .gourd img { width: 15px; height: 22px; }
 #playerbar .gourd span { font-size: 15px; line-height: 15px; color: #e9dfcf; text-shadow: 0 1px 3px #000; letter-spacing: 0.05em; }
 #playerbar .gourd.empty { opacity: 0.35; }
+/* abilities: three brush kanji in ink rings above the bars; the dark wash sweeps away as each
+   recharges, a ready one breathes a faint glow in its own colour, the burning curse pulses. */
+#playerbar .abil { position: absolute; left: 0; bottom: 58px; display: flex; gap: 12px; }
+#playerbar .ab { position: relative; width: 46px; height: 46px; transition: transform 0.18s ease, opacity 0.3s ease; opacity: 0.62; }
+#playerbar .ab .ring { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.55; }
+#playerbar .ab .k { position: absolute; left: 50%; top: 50%; width: 30px; height: auto; transform: translate(-50%, -54%); filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); transition: filter 0.4s ease; }
+#playerbar .ab .sweep { position: absolute; inset: 5px; border-radius: 50%; background: conic-gradient(rgba(6,7,10,0.78) var(--a, 0deg), rgba(6,7,10,0) var(--a, 0deg)); }
+#playerbar .ab .key { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); font-size: 11px; letter-spacing: 0.1em; color: #d9cfbf; opacity: 0.7; text-shadow: 0 1px 2px #000; }
+#playerbar .ab.ready { opacity: 0.95; }
+#playerbar .ab.ready .k { filter: drop-shadow(0 0 5px var(--glow)) drop-shadow(0 1px 3px rgba(0,0,0,0.9)); animation: abBreathe 2.8s ease-in-out infinite; }
+#playerbar .ab.flare { animation: abFlare 0.6s cubic-bezier(.2,.8,.3,1); }
+#playerbar .ab.burn { opacity: 1; }
+#playerbar .ab.burn .ring { opacity: 0.95; filter: drop-shadow(0 0 6px var(--glow)); animation: abBurn 0.5s ease-in-out infinite alternate; }
+#playerbar .ab.deny { animation: abDeny 0.28s ease; }
+@keyframes abBreathe { 0%,100% { opacity: 0.85 } 50% { opacity: 1 } }
+@keyframes abFlare { 0% { transform: scale(1) } 35% { transform: scale(1.22) } 100% { transform: scale(1) } }
+@keyframes abBurn { from { opacity: 0.6 } to { opacity: 1 } }
+@keyframes abDeny { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-4px) } 75% { transform: translateX(4px) } }
 /* end screens: the scene dims behind, the brush word paints on in ~0.4 s */
 #end { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 16vh; }
 #end .e-kanji { width: min(40vw, 560px); height: auto; clip-path: inset(0 100% 0 0); opacity: 0; filter: drop-shadow(0 0 24px rgba(0,0,0,0.6)); }
@@ -181,14 +221,24 @@ const PROMPTS: Record<EndKind, string> = {
   defeat: "Enter / click  ·  duel again          Esc  ·  title",
   victory: "Enter / click  ·  title",
 };
-const CONTROLS = [
-  "LMB / J  strike   ·   hold  charged cut",
-  "RMB / K  guard   ·   tap as it lands  deflect",
-  "MMB / Q  lock on        mouse  look        WASD  move",
-  "Shift  step   ·   hold  run   ·   into a thrust  mikiri",
-  "Space  jump   ·   again at him  kick        R  gourd",
-  "A / D  ·  1 2 3  ·  click  difficulty",
+/** Controls table: [keys, what they do]. */
+const CONTROLS: [string, string][] = [
+  ["LMB · J", "strike   ·   hold for a charged cut"],
+  ["RMB · K", "guard   ·   tap as it lands to deflect"],
+  ["F", "parry"],
+  ["Shift", "step   ·   hold to sprint   ·   into a thrust: mikiri"],
+  ["Space", "jump   ·   again at him to kick"],
+  ["WASD · mouse", "move · look        MMB · Q  lock on"],
+  ["R", "gourd"],
+  ["1 · 2 · 3", "cursed blade · firecrackers · crow step"],
 ];
+/** The three abilities: kanji, key, and the glow colour (ART_DIRECTION.md: violet is the curse's alone). */
+const ABILS: { id: "curse" | "crackers" | "crow"; kanji: string; key: string; glow: string; ink: string }[] = [
+  { id: "curse", kanji: "呪", key: "1", glow: "rgba(150,95,255,0.85)", ink: "#d9c8f2" },
+  { id: "crackers", kanji: "爆", key: "2", glow: "rgba(255,150,70,0.8)", ink: "#f1e4d2" },
+  { id: "crow", kanji: "鴉", key: "3", glow: "rgba(190,205,240,0.75)", ink: "#e6e9f0" },
+];
+
 const DIFFS: { id: DifficultyName; kanji: string; latin: string }[] = [
   { id: "easy", kanji: "易", latin: "Easy" },
   { id: "medium", kanji: "中", latin: "Medium" },
@@ -230,8 +280,11 @@ export class Hud {
   private readonly diffEls = new Map<DifficultyName, HTMLElement>();
   private readonly diffMarks = new Map<DifficultyName, string>();
   private readonly diffMark: HTMLImageElement;
+  private readonly abEls = new Map<string, { root: HTMLElement; sweep: HTMLElement; ready: boolean; burn: boolean }>();
   /** A difficulty clicked on the title. */
   onDifficultyPick: ((d: DifficultyName) => void) | null = null;
+  /** The pointer moved onto a title choice (a soft sound). */
+  onHover: (() => void) | null = null;
 
   constructor(root: HTMLElement) {
     const style = document.createElement("style");
@@ -270,11 +323,21 @@ export class Hud {
     titlePress.src = this.smallURL("press any key  ·  click to begin");
     titlePress.classList.add("begin");
     this.title.appendChild(titlePress);
+    const veil = el("div", "veil", this.title);
+    this.title.insertBefore(veil, this.title.firstChild);
     const keys = el("div", "keys", this.title);
-    CONTROLS.forEach((line, i) => {
-      const img = new Image();
-      img.src = brushText(line, { size: 26, font: LATIN_FONT, weight: 400, color: "#e8dfd0", seed: 40 + i, dry: 0.25, splatter: 0, letterSpacing: 0.08, pad: 4 }).toDataURL();
-      keys.appendChild(img);
+    const rule = new Image();
+    rule.className = "rule";
+    rule.src = brushStroke(420, 16, "#d8cfc0", 33).toDataURL();
+    keys.appendChild(rule);
+    CONTROLS.forEach(([k, l], i) => {
+      const kc = new Image();
+      kc.className = "kc";
+      kc.src = brushText(k, { size: 26, font: LATIN_FONT, weight: 700, color: "#f1e9dc", seed: 40 + i, dry: 0.2, splatter: 0, letterSpacing: 0.1, pad: 4 }).toDataURL();
+      const kl = new Image();
+      kl.className = "kl";
+      kl.src = brushText(l, { size: 26, font: LATIN_FONT, weight: 400, color: "#e2d9ca", seed: 60 + i, dry: 0.25, splatter: 0, letterSpacing: 0.06, pad: 4 }).toDataURL();
+      keys.append(kc, kl);
     });
     const diff = el("div", "diff", this.title);
     DIFFS.forEach((d, i) => {
@@ -290,6 +353,7 @@ export class Hud {
       u.className = "u";
       u.src = brushStroke(240, 18, "#a8231a", 60 + i).toDataURL();
       opt.append(k, l, u);
+      opt.addEventListener("mouseenter", () => this.onHover?.());
       // Swallow the press so the title's "any key" prompt never sees it.
       opt.addEventListener("mousedown", (e) => {
         e.stopPropagation();
@@ -299,6 +363,10 @@ export class Hud {
       this.diffEls.set(d.id, opt);
       this.diffMarks.set(d.id, k.src);
     });
+    const hint = new Image();
+    hint.className = "hint";
+    hint.src = brushText("A / D  ·  1 2 3  ·  click", { size: 24, font: LATIN_FONT, weight: 400, color: "#e2d9ca", seed: 69, dry: 0.2, splatter: 0, letterSpacing: 0.14, pad: 4 }).toDataURL();
+    diff.appendChild(hint);
 
     // ---------------------------------------------------------------- fight HUD
     this.fight = el("div", "layer hidden", root);
@@ -349,6 +417,23 @@ export class Hud {
     this.diffMark = new Image();
     this.diffMark.className = "diffmark";
     row.appendChild(this.diffMark);
+    const abil = el("div", "abil", pb);
+    ABILS.forEach((a, i) => {
+      const root = el("div", "ab ready", abil);
+      root.dataset.ability = a.id;
+      root.style.setProperty("--glow", a.glow);
+      const ring = new Image();
+      ring.className = "ring";
+      ring.src = inkDab(64, "#d8d2c6", 120 + i, true);
+      const k = new Image();
+      k.className = "k";
+      k.src = brushText(a.kanji, { size: 60, color: a.ink, seed: 130 + i, dry: 0.5, splatter: 0.1, pad: 6 }).toDataURL();
+      const sweep = el("div", "sweep");
+      const key = el("span", "key");
+      key.textContent = a.key;
+      root.append(ring, sweep, k, key);
+      this.abEls.set(a.id, { root, sweep, ready: true, burn: false });
+    });
     const pp = bar(pb);
     pp.root.className = "posture";
     el("div", "tick", pp.root);
@@ -415,7 +500,14 @@ export class Hud {
   }
 
   showTitle(on: boolean): void {
+    const was = !this.title.classList.contains("hidden");
     this.title.classList.toggle("hidden", !on);
+    // Each arrival on the title plays the intro: the night, then the title brushing in.
+    if (on && !was) {
+      this.title.classList.remove("intro");
+      void this.title.offsetWidth;
+      this.title.classList.add("intro");
+    }
   }
 
   showFight(on: boolean): void {
@@ -424,7 +516,15 @@ export class Hud {
 
   /** The title's highlighted choice. */
   setDifficulty(d: DifficultyName): void {
-    for (const [id, e] of this.diffEls) e.classList.toggle("on", id === d);
+    for (const [id, e] of this.diffEls) {
+      const was = e.classList.contains("on");
+      e.classList.toggle("on", id === d);
+      if (id === d && !was) {
+        e.classList.remove("pick");
+        void e.offsetWidth;
+        e.classList.add("pick");
+      }
+    }
   }
 
   /** The faint mark beside the gourd: the difficulty this fight runs on. */
@@ -491,6 +591,37 @@ export class Hud {
 
   phase(n: number): void {
     this.bossbar.classList.toggle("p2", n === 2);
+  }
+
+  /** Ability icons: `charge` 0..1 (1 = ready), `burn` while its effect is running. */
+  abilities(st: { id: string; charge: number; burn: boolean }[]): void {
+    for (const a of st) {
+      const e = this.abEls.get(a.id);
+      if (!e) continue;
+      const ready = a.charge >= 1;
+      e.sweep.style.setProperty("--a", `${((1 - Math.min(1, a.charge)) * 360).toFixed(1)}deg`);
+      if (ready !== e.ready) {
+        e.ready = ready;
+        e.root.classList.toggle("ready", ready);
+        if (ready) this.retrigger(e.root, "flare");
+      }
+      if (a.burn !== e.burn) {
+        e.burn = a.burn;
+        e.root.classList.toggle("burn", a.burn);
+      }
+    }
+  }
+
+  /** An ability pressed while recharging: the icon shakes its head. */
+  denyAbility(id: string): void {
+    const e = this.abEls.get(id);
+    if (e) this.retrigger(e.root, "deny");
+  }
+
+  private retrigger(e: HTMLElement, cls: string): void {
+    e.classList.remove(cls);
+    void e.offsetWidth;
+    e.classList.add(cls);
   }
 
   private setMarkers(n: number): void {

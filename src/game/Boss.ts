@@ -182,10 +182,11 @@ export type BState =
   | "rise"
   | "finished"
   | "dead"
-  | "wait";
+  | "wait"
+  | "stunned";
 
 /** States in which his guard is down: player cuts land in full and flinch him. */
-export const OPEN: ReadonlySet<BState> = new Set<BState>(["recoil", "flinch", "recover", "whiff", "mikiried", "kicked"]);
+export const OPEN: ReadonlySet<BState> = new Set<BState>(["recoil", "flinch", "recover", "whiff", "mikiried", "kicked", "stunned"]);
 
 export const BOSS_MAX = { health: 100, posture: 100, markers: 2 };
 /** Seconds the deathblow stays available after a break. */
@@ -244,6 +245,10 @@ export class Boss {
   private openHits = 0;
   /** How long the current `recover` opening lasts. */
   private recoverFor = 0.6;
+  /** How long the current `stunned` opening lasts (firecrackers, losing her to the crow step). */
+  private stunFor = 1;
+  /** Stunned by the crow step: he turns to where she went (slowly), not where she is. */
+  private stunTurn = 0;
   /** Answer to a deflected cut, started after DIFFICULTY.counterDelay on guard. */
   private pendingCounter: string | null = null;
   private lastGuardT = -9;
@@ -602,6 +607,16 @@ export class Boss {
           this.events.push("recover");
         }
         break;
+      case "stunned":
+        this.vel.multiplyScalar(Math.exp(-dt * 7));
+        if (this.stunTurn > 0) this.yaw = approachAngle(this.yaw, face, dt * this.stunTurn);
+        // He shakes it off and answers (Sekiro: a stun is an opening, not a free fight): guard up,
+        // turn to her, then the long string. Deflect it and the stun paid twice; mash and you eat it.
+        if (this.stateT > this.stunFor) {
+          if (this.passive) this.backToIdle(0.35);
+          else this.counter();
+        }
+        break;
       case "recover":
         this.vel.multiplyScalar(Math.exp(-dt * 6));
         if (this.stateT > this.recoverFor) {
@@ -730,6 +745,28 @@ export class Boss {
   flinch(): void {
     this.enter("flinch");
     this.setClip("flinch", 0.05);
+  }
+
+  /** Can an ability interrupt him right now (not while broken, kneeling, rising or throwing)? */
+  get stunnable(): boolean {
+    const s = this.state;
+    return s !== "stagger" && s !== "deathblown" && s !== "rise" && s !== "throw" && s !== "finished" && s !== "dead" && s !== "wait";
+  }
+
+  /**
+   * Knocked out of whatever he was doing and open for `t` seconds: the firecrackers (he reels,
+   * `turn` 0), or the crow step (he lost her and turns to find her at `turn` rad/s).
+   */
+  stun(t: number, clip = "flinch", turn = 0): void {
+    this.opened();
+    this.attack = null;
+    this.follow = null;
+    this.pendingCounter = null;
+    this.pos.y = 0;
+    this.stunFor = t;
+    this.stunTurn = turn;
+    this.enter("stunned");
+    this.setClip(clip, 0.06);
   }
 
   /** Stomped by the mikiri counter. */

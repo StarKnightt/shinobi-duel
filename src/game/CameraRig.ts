@@ -79,6 +79,13 @@ export class CameraRig {
       const a = Math.sin(this.t * 0.05) * 0.35 + 0.35;
       P.set(4.2 + Math.sin(a) * 3, 1.5 + Math.sin(this.t * 0.2) * 0.12, 9.5 - a * 1.5);
       L.set(-3.5, 2.6, -14);
+      // Intro: the shot opens wide and high over the roof and settles into the drift (~6 s).
+      const u = clamp(this.modeT / 6, 0, 1);
+      const e = 1 - (1 - u) * (1 - u) * (1 - u);
+      P.x += (1 - e) * 2.2;
+      P.y += (1 - e) * 2.4;
+      P.z += (1 - e) * 4.5;
+      L.y += (1 - e) * 1.6;
       rate = 3;
       lookRate = 3;
     } else if (this.mode === "lock" || this.mode === "intro") {

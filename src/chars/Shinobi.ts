@@ -246,6 +246,10 @@ export class Shinobi extends Character {
       revive: new Clip("revive", [k(0, DOWN), k(0.55, KNEEL), k(1.1, pose(KNEEL, { chestPitch: 0.2, head: -0.1 })), k(1.45, S2), k(1.7, S)]),
       thrown: new Clip("thrown", [k(0, HIT), k(0.4, LIFTED), k(0.62, pose(LIFTED, { rootY: 0.5 })), k(0.74, DOWN), k(1.15, DOWN), k(1.5, KNEEL), k(1.9, S)]),
       deathblow: new Clip("deathblow", [k(0, S), k(0.2, F_GRAB, true), k(0.31, F_PLUNGE), k(0.7, pose(F_PLUNGE, { lean: 0.26 })), k(0.9, F_OUT), k(1.15, F_FLICK), k(1.45, S)]),
+      // Abilities: a throw from the off hand, igniting the blade, the crow step's vanish.
+      tool: new Clip("tool", [k(0, S), k(0.08, G), k(0.2, G), k(0.45, S)]),
+      curse: new Clip("curse", [k(0, S), k(0.12, G), k(0.42, G), k(0.6, S)]),
+      crow: new Clip("crow", [k(0, S), k(0.09, DODGE_LOW), k(0.3, DODGE_LOW), k(0.42, S)]),
     };
     super(SHINOBI_DIMS, clips.idle, 0xbfd6ff, 1.1);
     this.clips = clips;

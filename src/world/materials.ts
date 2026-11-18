@@ -70,7 +70,13 @@ export function installFog(): void {
 }
 
 /** Tuned edge light on the skinned fighters (see TASKS.md "Lighting pass"). */
-export const SKIN_RIM = { sun: 1.25, sky: 0.3, sunPow: 2.4 };
+export const SKIN_RIM = { sun: 3.2, sky: 0.6, sunPow: 2.0 };
+/**
+ * Character lighting (ART_DIRECTION.md "Light"): a soft cool fill from the camera side so faces and
+ * costumes read (~30% of the key), and extra wrap response to point lights so the lanterns and the
+ * sparks bounce warm light onto the fighters. Only on character materials.
+ */
+export const CHAR_LIGHT = { fill: [0.5, 0.58, 0.78] as const, fillWrap: 0.5, bounce: 0.3 };
 
 /**
  * Sekiro-style separation for every skinned body, done in the light loop (the character code is
@@ -93,6 +99,19 @@ function installSkinRim(): void {
       * rimSide * (0.3 + 0.7 * rimBack) * ${SKIN_RIM.sun.toFixed(3)};
     reflectedLight.directDiffuse += vec3(0.35, 0.45, 0.8) * rimTint * pow(rimF, 2.5) * (1.0 - rimSide)
       * saturate(geometryNormal.y * 0.5 + 0.6) * ${SKIN_RIM.sky.toFixed(3)};
+    // Fill: cool, soft, from the camera side; the side turned away stays darker (form, not flat).
+    float fillW = saturate(dot(geometryNormal, geometryViewDir) * ${CHAR_LIGHT.fillWrap.toFixed(2)} + (1.0 - ${CHAR_LIGHT.fillWrap.toFixed(2)}));
+    reflectedLight.indirectDiffuse += material.diffuseColor * vec3(${CHAR_LIGHT.fill.map((v) => v.toFixed(3)).join(", ")}) * fillW * (0.75 + 0.25 * geometryNormal.y);
+  }
+#endif
+#if ( defined( USE_SKINNING ) || defined( CHAR_RIM ) ) && NUM_POINT_LIGHTS > 0
+  { // CHAR_BOUNCE: warm local light (lanterns, sparks) wraps round the fighters.
+    IncidentLight bl;
+    for (int bi = 0; bi < NUM_POINT_LIGHTS; bi++) {
+      getPointLightInfo(pointLights[bi], geometryPosition, bl);
+      float wrapL = saturate(dot(geometryNormal, bl.direction) * 0.5 + 0.5);
+      reflectedLight.directDiffuse += material.diffuseColor * bl.color * wrapL * wrapL * ${CHAR_LIGHT.bounce.toFixed(2)};
+    }
   }
 #endif`;
 }

@@ -149,6 +149,11 @@ export const PLAYER_SKIN: SkinnedConfig = {
     revive: { clip: "get_up", fit: 1.7, alt: ["idle"], warpK: 4 },
     thrown: { clip: "thrown", fit: 1.9, alt: ["knockdown", "death"] },
     deathblow: { clip: "deathblow", fit: 1.45, alt: ["finisher"] },
+    // Abilities (keys 1-3): firecrackers flung from the hand, the blade raised as the curse takes it,
+    // the crow step's dive into the feathers.
+    tool: { clip: "block_impact", fit: 0.45, alt: ["hit"] },
+    curse: { clip: "block_impact", fit: 0.6, alt: ["idle"] },
+    crow: { clip: "dodge_forward", fit: 0.3, alt: ["dodge"] },
   },
   required: ["idle", "attack1", "attack2", "attack3", "block", "block_impact", "hit", "dodge", "death", "finisher"],
   locomotion: { idle: "idle", walk: "walk", back: "walk_back", left: "strafe_left", right: "strafe_right", run: "run", turnLeft: "turn_left", turnRight: "turn_right", walkSpeed: 1.6, runSpeed: 5.5 },
@@ -178,7 +183,8 @@ export const PLAYER_SKIN: SkinnedConfig = {
   trail: { color: 0xbfd6ff, intensity: 1.1 },
   clothTint: 0x7a1c16,
   gourd: { bone: "LeftHand", offset: [0.0, 0.07, 0.035], rot: [0, 0, 0], scale: 1, during: ["heal"] },
-  rim: { color: 0xffc38a, strength: 0.22 },
+  // Cold moon-silver edge (ART_DIRECTION.md: the rim is cold; warmth only comes from lanterns and sparks).
+  rim: { color: 0xb4c8ff, strength: 0.2 },
 };
 
 export const BOSS_SKIN: SkinnedConfig = {
@@ -250,7 +256,7 @@ export const BOSS_SKIN: SkinnedConfig = {
   // Tattered cape pinned across the upper back.
   cloth: [{ index: 0, socket: { bone: "Spine2", offset: [0, -0.12, 0], rot: [0, 0, 0], scale: 1.2 } }],
   trail: { color: 0xff6a3a, intensity: 1.0 },
-  rim: { color: 0xffb070, strength: 0.2 },
+  rim: { color: 0x9fb4e6, strength: 0.17 },
 };
 
 export const SKINS = { player: PLAYER_SKIN, boss: BOSS_SKIN };

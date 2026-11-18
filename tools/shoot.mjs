@@ -15,7 +15,7 @@ console.log("renderer:", renderer);
 for (const s of scenes) {
   const info = await page.evaluate((n) => window.__duel.scene(n), s);
   // CSS reveals (title / end screens) run in real time.
-  await page.waitForTimeout(s === "victory" ? 2600 : s === "title" ? 900 : 750);
+  await page.waitForTimeout(s === "victory" ? 2600 : s === "title" ? 4800 : 750);
   await page.screenshot({ path: join(out, `${s}${process.env.TAG ? "_" + process.env.TAG : ""}.png`) });
   console.log(s, JSON.stringify({ state: info.state, boss: info.boss, player: info.player, calls: info.drawCalls, tris: info.triangles }));
 }

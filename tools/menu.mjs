@@ -71,12 +71,13 @@ for (const [w, h] of [
     const keys = document.querySelector("#title .keys");
     const diff = r(document.querySelector("#title .diff"));
     const press = r(document.querySelector("#title .press.begin"));
-    const imgs = [...keys.querySelectorAll("img")].map((i) => ({ ...r(i).toJSON(), ok: i.complete && i.naturalWidth > 0 }));
+    // The controls table: a key column and a label column (the brush rule above them is decoration).
+    const imgs = [...keys.querySelectorAll("img.kc, img.kl")].map((i) => ({ ...r(i).toJSON(), ok: i.complete && i.naturalWidth > 0 }));
     const inView = (b) => b.left >= 0 && b.top >= 0 && b.right <= innerWidth && b.bottom <= innerHeight;
     const overlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
     const k = r(keys);
     return {
-      lines: imgs.length,
+      lines: keys.querySelectorAll("img.kc").length,
       loaded: imgs.every((i) => i.ok),
       inView: imgs.every(inView) && inView(press) && inView(diff),
       clearOfDiff: !overlap(k, diff) && !overlap(k, press) && !overlap(diff, press),
@@ -86,7 +87,7 @@ for (const [w, h] of [
     };
   });
   check(
-    L.lines === 6 && L.loaded && L.inView && L.clearOfDiff && +L.minH >= 16,
+    L.lines === 8 && L.loaded && L.inView && L.clearOfDiff && +L.minH >= 16,
     `${w}×${h}: controls lines on screen, readable, clear of the selector / prompt`,
     `${L.lines} lines, loaded ${L.loaded}, in view ${L.inView}, clear ${L.clearOfDiff}, line height ${L.minH}px, keys right ${L.keysRight} / selector left ${L.diffLeft}`,
   );

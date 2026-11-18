@@ -179,7 +179,7 @@ const results = await page.evaluate(() => {
     inp.release("dodge");
     run(0.3);
     inp.botAxis = null;
-    check("move: holding dodge after the step runs", running && vRun > 5, `running=${running} speed ${vRun.toFixed(2)}`);
+    check("move: holding Shift after the step sprints, well above the jog", running && vRun > 6.8, `running=${running} speed ${vRun.toFixed(2)}`);
 
     const dists = [];
     for (const ax of [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: -1 }, { x: 0.7, y: -0.7 }]) {
@@ -971,6 +971,144 @@ const results = await page.evaluate(() => {
     run(0.05);
     const roll = p.state;
     check("guard break: a step dodge shortens it (safety roll)", roll === "dodge", `0.4 s into the break + dodge -> ${roll}`);
+  }
+
+  // ------------------------------------------------------------ 6. keys and abilities
+  {
+    const key = (code, up = true) => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code }));
+      if (up) window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+    };
+    const A = p.abil;
+
+    // F = parry: a timed F press deflects his blow; an early one doesn't hold a block up.
+    const fProbe = (offMs) => {
+      fresh(2.2);
+      const s0 = { ...g.stats };
+      g.forceBossAttack("overhead");
+      const contact = b.attack.hits[0].contact;
+      let pressed = false;
+      run(2.2, () => {
+        if (!pressed && b.state === "attack" && b.stateT >= contact + offMs / 1000) {
+          pressed = true;
+          key("KeyF");
+        }
+      });
+      return g.stats.deflects > s0.deflects ? "deflect" : g.stats.blocks > s0.blocks ? "block" : g.stats.hitsTaken > s0.hitsTaken ? "hit" : "none";
+    };
+    const fOn = fProbe(-60);
+    const fEarly = fProbe(-600);
+    check("keys: F parries (a timed press deflects, an early one is not a held block)", fOn === "deflect" && fEarly === "hit" && !inp.isHeld("block"), `on time: ${fOn}, 0.6 s early: ${fEarly}`);
+
+    // Ctrl does nothing (Ctrl+W closes the tab); 1-2-3 on the title still pick the difficulty.
+    fresh(4);
+    const st0 = p.state;
+    key("ControlLeft");
+    key("ControlRight");
+    run(0.3);
+    check("keys: Ctrl is unbound", p.state === st0 && A.used.curse + A.used.crackers + A.used.crow === 0, `state ${st0} -> ${p.state}`);
+
+    // Each ability: fires once, spends its recharge, refuses while recharging, is ready again on time.
+    const cdTest = (id, action, cd, setup) => {
+      fresh(setup?.dist ?? 2.4);
+      setup?.before?.();
+      tap(action);
+      run(1.0);
+      const fired = A.used[id] === 1;
+      const left = A.cd[id];
+      // Pressed again while recharging: no second use, and the press is refused visibly.
+      const st = p.state;
+      tap(action);
+      run(0.6);
+      const refused = A.used[id] === 1 && p.state !== "tool" && p.state !== "crow";
+      run(cd - 1.6 - 0.5);
+      const notYet = !A.ready(id);
+      run(0.7);
+      const ready = A.ready(id) && Math.abs(A.charge(id) - 1) < 1e-6;
+      check(`ability ${action.slice(-1)} (${id}): ${cd} s recharge, refused while recharging`, fired && left > cd - 1.05 && refused && notYet && ready, `fired ${fired}, ${left.toFixed(2)} s left after 1 s, refused ${refused} (state ${st}), not ready at ${cd - 0.5} s ${notYet}, ready at ${cd + 0.2} s ${ready}`);
+    };
+
+    // 1: Cursed Blade — 9 s, much more damage and posture on each cut.
+    fresh(1.5);
+    b.state = "recoil";
+    b.stateT = 0;
+    let h0 = b.health, q0 = b.posture;
+    tap("attack");
+    run(0.6);
+    const plainD = h0 - b.health, plainP = b.posture - q0;
+    fresh(1.5);
+    tap("ability1");
+    run(0.8);
+    const lit = A.cursed;
+    const tLeft = A.curseT;
+    g.place(1.5);
+    run(0.05);
+    b.state = "recoil";
+    b.stateT = 0;
+    h0 = b.health;
+    q0 = b.posture;
+    tap("attack");
+    run(0.6);
+    const curD = h0 - b.health, curP = b.posture - q0;
+    run(9);
+    check("ability 1: cursed blade burns ~9 s, cuts deal 1.4x damage and 1.5x posture", lit && tLeft > 8.2 && tLeft <= 9 && !A.cursed && curD > plainD * 1.3 && curP > plainP * 1.4, `burning ${lit} (${tLeft.toFixed(2)} s left), cut ${plainD.toFixed(1)} -> ${curD.toFixed(1)} hp, posture ${plainP.toFixed(1)} -> ${curP.toFixed(1)}, out after 9 s ${!A.cursed}`);
+    cdTest("curse", "ability1", 30);
+
+    // 2: Firecrackers — he reels (stunned) if close and in front; not from across the roof.
+    fresh(2.6);
+    tap("ability2");
+    let stunned = false;
+    run(1.2, () => {
+      if (b.state === "stunned") stunned = true;
+    });
+    fresh(8);
+    tap("ability2");
+    let farStun = false;
+    run(1.2, () => {
+      if (b.state === "stunned") farStun = true;
+    });
+    check("ability 2: firecrackers stun him up close, not from 8 m", stunned && !farStun && A.used.crackers === 1, `close: stunned ${stunned}; 8 m: stunned ${farStun}`);
+    // A stun mid-wind-up cancels his blow.
+    fresh(2.4);
+    g.forceBossAttack("overhead");
+    run(0.1);
+    const ht0 = g.stats.hitsTaken;
+    tap("ability2");
+    run(2.0);
+    check("ability 2: firecrackers break his wind-up (the blow never lands)", g.stats.hitsTaken === ht0, `hits taken +${g.stats.hitsTaken - ht0}`);
+    cdTest("crackers", "ability2", 20, { dist: 2.6 });
+
+    // 3: Crow Step — she vanishes, reappears behind him, untouchable in between; a cut lands on his back.
+    fresh(2.6);
+    tap("ability3");
+    let hidden = false, inv = false;
+    run(0.3, () => {
+      if (p.state === "crow" && !p.ch.rig.root.visible) hidden = true;
+      if (p.state === "crow" && p.invulnerable) inv = true;
+    });
+    run(0.25);
+    const fx = Math.sin(b.yaw), fz = Math.cos(b.yaw);
+    const behind = (p.pos.x - b.pos.x) * fx + (p.pos.z - b.pos.z) * fz < 0;
+    const bs = b.state;
+    const ph0 = g.stats.playerHits;
+    tap("attack");
+    run(0.6);
+    check("ability 3: crow step vanishes her (untouchable) and puts her behind him for a free cut", hidden && inv && behind && bs === "stunned" && g.stats.playerHits > ph0, `vanished ${hidden}, invulnerable ${inv}, behind him ${behind}, boss ${bs}, back cut ${g.stats.playerHits > ph0}`);
+    cdTest("crow", "ability3", 15, { dist: 2.6 });
+
+    // Abilities are fight-only: on the title, 1-2-3 pick the difficulty and cast nothing.
+    g.toTitle?.();
+    run(0.2);
+    if (g.state === "title") {
+      const d0 = g.difficulty;
+      key("Digit3");
+      run(0.1);
+      const d3 = g.difficulty;
+      key("Digit1");
+      run(0.1);
+      check("keys: 1-2-3 on the title pick the difficulty, cast nothing", d3 === "hard" && g.difficulty === "easy" && A.used.curse + A.used.crow === 0, `${d0} -> 3: ${d3} -> 1: ${g.difficulty}`);
+      key("Digit2");
+    }
   }
 
   g.resume();

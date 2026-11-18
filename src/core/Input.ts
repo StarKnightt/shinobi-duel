@@ -10,7 +10,7 @@
  */
 import { DIFFICULTY } from "../game/difficulty";
 
-export type Action = "attack" | "block" | "dodge" | "jump" | "lock" | "heal";
+export type Action = "attack" | "block" | "dodge" | "jump" | "lock" | "heal" | "ability1" | "ability2" | "ability3";
 export type PromptKey = "confirm" | "back";
 
 /**
@@ -48,6 +48,12 @@ export class Input {
       this.promptPress(e.code);
       const a = this.keyAction(e.code);
       if (a) this.press(a, e.code);
+      // F: parry. A guard tap that doesn't stay up: the same deflect window (and the same
+      // anti-mash rule) as a right-click press, but no held block behind it.
+      if (e.code === "KeyF") {
+        this.press("block", "KeyF");
+        this.release("block", "KeyF");
+      }
     });
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.code);
@@ -103,6 +109,16 @@ export class Input {
         return "lock";
       case "KeyR":
         return "heal";
+      // Abilities. Ctrl is deliberately unbound (Ctrl+W closes the tab).
+      case "Digit1":
+      case "Numpad1":
+        return "ability1";
+      case "Digit2":
+      case "Numpad2":
+        return "ability2";
+      case "Digit3":
+      case "Numpad3":
+        return "ability3";
     }
     return null;
   }
