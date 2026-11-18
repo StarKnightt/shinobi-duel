@@ -25,14 +25,16 @@ const CSS = /* css */ `
 #title .t-latin { width: min(17vw, 250px); height: auto; margin-top: 1.8vh; opacity: 0.88; }
 #title .t-seal { position: absolute; right: -4.4vh; bottom: 3vh; width: 4vh; height: auto; z-index: 2; }
 #title .press { position: absolute; right: 7vw; bottom: 9vh; height: 30px; width: auto; opacity: 0.8; animation: breathe 3.6s ease-in-out infinite; }
-/* Controls: a quiet two-column table, keys in bone white on the left, what they do dimmer on the
-   right; no boxes, no borders (ART_DIRECTION.md "Never"). A thin ink rule heads it. */
-#title .keys { position: absolute; left: 4vw; bottom: 7vh; display: grid; grid-template-columns: auto auto; column-gap: min(1.6vw, 22px); row-gap: min(0.55vh, 6px); align-items: center; width: max-content; opacity: 0.9; }
-#title .keys .rule { grid-column: 1 / span 2; height: 8px; width: min(15vw, 210px); opacity: 0.55; margin-bottom: 4px; }
-#title .keys .kc { justify-self: end; height: min(2.3vh, 20px); width: auto; opacity: 0.95; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
-#title .keys .kl { justify-self: start; height: min(2.3vh, 20px); width: auto; opacity: 0.8; filter: drop-shadow(0 0 4px rgba(0,0,0,0.95)) drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+/* Controls: a small quiet table in the lower right, under the title and above the prompt, so the
+   left of the frame belongs to the fighters (a poster: title, figures, a colophon). Keys in bone
+   white, what they do dimmer; no boxes, no borders (ART_DIRECTION.md "Never"). A thin ink rule
+   heads it. */
+#title .keys { position: absolute; right: 7vw; bottom: calc(9vh + 30px + 2.6vh); display: grid; grid-template-columns: auto auto; column-gap: min(1.1vw, 16px); row-gap: min(0.3vh, 3px); align-items: center; width: max-content; opacity: 0.85; }
+#title .keys .rule { grid-column: 1 / span 2; justify-self: end; height: 7px; width: min(11vw, 160px); opacity: 0.6; margin-bottom: 5px; }
+#title .keys .kc { justify-self: end; height: max(16px, min(2.2vh, 18px)); width: auto; opacity: 0.9; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
+#title .keys .kl { justify-self: start; height: max(16px, min(2.2vh, 18px)); width: auto; opacity: 0.86; filter: drop-shadow(0 0 4px rgba(0,0,0,0.95)) drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
 /* A soft dark falloff behind the table so it reads over lit snow (a shadow, not a box). */
-#title .keys::before { content: ""; position: absolute; left: -4vw; right: -6vw; top: -4vh; bottom: -5vh; z-index: -1; background: radial-gradient(ellipse at 30% 55%, rgba(4,6,10,0.55), rgba(4,6,10,0) 70%); pointer-events: none; }
+#title .keys::before { content: ""; position: absolute; left: -4vw; right: -4vw; top: -4vh; bottom: -4vh; z-index: -1; background: radial-gradient(ellipse closest-side at 50% 52%, rgba(4,6,10,0.72), rgba(4,6,10,0.45) 55%, rgba(4,6,10,0) 100%); pointer-events: none; }
 #title .diff .hint { position: absolute; left: 50%; top: 100%; transform: translateX(-50%); height: min(1.9vh, 16px); width: auto; opacity: 0.55; margin-top: 2px; }
 /* Intro: the night first, then the title brushes in, the controls and the choice after it. */
 #title .veil { position: absolute; inset: 0; background: #04060a; opacity: 0; }
@@ -43,7 +45,7 @@ const CSS = /* css */ `
 #title.intro .press.begin { animation: pIn 1.2s ease 3.0s both, breathe 3.6s ease-in-out 4.2s infinite; }
 @keyframes veilOut { from { opacity: 1 } to { opacity: 0 } }
 @keyframes tIn { from { opacity: 0; transform: translateY(2.5vh); filter: blur(6px) } to { opacity: 1; transform: none; filter: none } }
-@keyframes kIn { from { opacity: 0; transform: translateX(-1.5vw) } to { opacity: 0.9; transform: none } }
+@keyframes kIn { from { opacity: 0; transform: translateX(1.5vw) } to { opacity: 0.85; transform: none } }
 @keyframes dIn { from { opacity: 0; transform: translate(-50%, 1.2vh) } to { opacity: 1; transform: translate(-50%, 0) } }
 @keyframes pIn { from { opacity: 0 } to { opacity: 0.8 } }
 /* the begin prompt is clickable; its mousedown bubbles to Input as a title "any key" press */
@@ -223,14 +225,14 @@ const PROMPTS: Record<EndKind, string> = {
 };
 /** Controls table: [keys, what they do]. */
 const CONTROLS: [string, string][] = [
-  ["LMB · J", "strike   ·   hold for a charged cut"],
-  ["RMB · K", "guard   ·   tap as it lands to deflect"],
+  ["LMB · J", "strike  ·  hold: charged cut"],
+  ["RMB · K", "guard  ·  tap on impact: deflect"],
   ["F", "parry"],
-  ["Shift", "step   ·   hold to sprint   ·   into a thrust: mikiri"],
-  ["Space", "jump   ·   again at him to kick"],
-  ["WASD · mouse", "move · look        MMB · Q  lock on"],
+  ["Shift", "step  ·  sprint  ·  into a thrust: mikiri"],
+  ["Space", "jump  ·  again: kick"],
+  ["WASD · mouse", "move · look  ·  MMB · Q  lock"],
   ["R", "gourd"],
-  ["1 · 2 · 3", "cursed blade · firecrackers · crow step"],
+  ["1 · 2 · 3", "curse  ·  crackers  ·  crow"],
 ];
 /** The three abilities: kanji, key, and the glow colour (ART_DIRECTION.md: violet is the curse's alone). */
 const ABILS: { id: "curse" | "crackers" | "crow"; kanji: string; key: string; glow: string; ink: string }[] = [

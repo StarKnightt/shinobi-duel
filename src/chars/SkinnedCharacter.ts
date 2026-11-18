@@ -229,6 +229,10 @@ export class SkinnedCharacter implements Fighter {
     if (hips?.parent) up.applyQuaternion(hips.parent.getWorldQuaternion(new THREE.Quaternion()).invert()).normalize();
     const hidden = new Set(cfg.hide ?? []);
     for (const b of hidden) this.bones.get(b)?.scale.setScalar(1e-3);
+    // Whole meshes replaced by reused parts (the Paladin's own helmet under the kabuto).
+    if (cfg.hideMeshes?.length) model.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && cfg.hideMeshes!.includes(o.name)) o.visible = false;
+    });
     for (const c of clips) {
       const clip = c.clone();
       clip.name = normalizeClip(c.name);

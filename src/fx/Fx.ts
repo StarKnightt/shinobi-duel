@@ -36,7 +36,7 @@ export class Fx {
   /** Rising additive motes that keep their colour: curse fire, heal motes, rage embers. */
   readonly wisps = new Streaks(1800, "add");
   /** Black crow feathers (normal blending), drifting down. */
-  readonly feathers = new Streaks(320, "ink");
+  readonly feathers = new Streaks(1100, "ink");
   /** Dark smoke that rises (the curse's black edge, the rage's heat haze, the crow's shadow). */
   readonly haze = new Streaks(500, "ink");
   /**
@@ -44,6 +44,8 @@ export class Fx {
    * scene (intensity 0 when off) so turning one on never recompiles a shader.
    */
   readonly herLight = new THREE.PointLight(0x9a5cff, 0, 2.2, 2);
+  private readonly curseTip = new THREE.Vector3();
+  curseTipOk = false;
   readonly hisLight = new THREE.PointLight(0xff3a28, 0, 2.6, 2);
   /** Firecracker pops still to go off (seconds from now, where). */
   private pops: { t: number; p: THREE.Vector3; big: boolean }[] = [];
@@ -82,6 +84,7 @@ export class Fx {
     this.feathers.cooling = false;
     this.feathers.gravity = -1.1;
     this.feathers.drag = 3.2;
+    this.feathers.flutter = 7;
     this.feathers.alpha = 0.92;
     this.feathers.floorY = 0.02;
     this.feathers.bounce = 0;
@@ -186,26 +189,44 @@ export class Fx {
    */
   curseBlade(hilt: THREE.Vector3, tip: THREE.Vector3, dt: number, k: number): void {
     const R = this.R;
-    // Sparse, peeling tongues (a dense stack of additive blobs on a still blade reads as a neon bar).
-    const n = Math.floor(dt * 120 * k + R());
+    // Blade speed (m/s at the tip): a swing sheds a trail of fire behind it.
+    const sp = this.curseTipOk && dt > 0 ? Math.min(30, this.curseTip.distanceTo(tip) / dt) : 0;
+    this.curseTip.copy(tip);
+    this.curseTipOk = true;
+    // Tongues along the whole blade: violet bodies, a few pale cores (#D9B8FF), each one licking
+    // up off the steel and thinning. Spread off the blade line so they never stack into a bar.
+    const n = Math.floor(dt * (230 + sp * 30) * k + R());
     for (let i = 0; i < n; i++) {
-      const u = Math.pow(R(), 0.7);
-      _p.lerpVectors(hilt, tip, 0.15 + u * 0.85);
-      _p.x += (R() - 0.5) * 0.09;
-      _p.z += (R() - 0.5) * 0.09;
-      const hot = R() < 0.18;
-      // Tongues: wide soft blobs that rise and thin; the hot ones small and pale.
-      const w = hot ? 0.012 + R() * 0.012 : 0.03 + R() * 0.035;
-      const life = hot ? 0.12 + R() * 0.12 : 0.22 + R() * 0.25;
-      this.wisps.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.5, 0.9 + R() * 1.1, (R() - 0.5) * 0.5, life, w, 0.035, hot ? 0.95 : 0.24, hot ? 0.75 : 0.06, hot ? 1.3 : 0.6);
+      const u = R();
+      _p.lerpVectors(hilt, tip, 0.08 + u * 0.92);
+      _p.x += (R() - 0.5) * 0.08;
+      _p.y += (R() - 0.5) * 0.03;
+      _p.z += (R() - 0.5) * 0.08;
+      const hot = R() < 0.13;
+      const w = hot ? 0.014 + R() * 0.012 : 0.03 + R() * 0.04;
+      const life = hot ? 0.1 + R() * 0.12 : 0.2 + R() * 0.24;
+      const f = 0.7 + 0.3 * u; // fuller toward the tip
+      this.wisps.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.8, 1.1 + R() * 1.4, (R() - 0.5) * 0.8, life, w * f, 0.06, hot ? 1.1 : 0.3, hot ? 0.85 : 0.06, hot ? 1.55 : 0.78);
     }
-    if (R() < dt * 40 * k) {
-      _p.lerpVectors(hilt, tip, 0.2 + R() * 0.8);
-      this.haze.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.2, 0.4 + R() * 0.3, (R() - 0.5) * 0.2, 0.5 + R() * 0.3, 0.05 + R() * 0.05, 0.05, 0.035, 0.008, 0.06);
+    // Trail: on a swing, long slow wisps left hanging in the arc.
+    if (sp > 3) {
+      const m = Math.floor(dt * sp * 22 * k + R());
+      for (let i = 0; i < m; i++) {
+        _p.lerpVectors(hilt, tip, 0.35 + R() * 0.65);
+        this.wisps.spawn(_p.x, _p.y, _p.z, (R() - 0.5) * 0.3, 0.3 + R() * 0.5, (R() - 0.5) * 0.3, 0.35 + R() * 0.3, 0.035 + R() * 0.03, 0.03, 0.32, 0.06, 0.8);
+      }
     }
-    this.herLight.color.setHex(0x7a46e0);
-    this.herLight.position.lerpVectors(hilt, tip, 0.5);
-    this.herLight.intensity = 0.9 * k * (0.85 + 0.15 * Math.sin(performance.now() * 0.03));
+    // Dark edges: violet-black smoke (#1A0B2A) curling off the flames.
+    const h = Math.floor(dt * 70 * k + R());
+    for (let i = 0; i < h; i++) {
+      _p.lerpVectors(hilt, tip, 0.15 + R() * 0.85);
+      this.haze.spawn(_p.x + (R() - 0.5) * 0.06, _p.y + 0.04, _p.z + (R() - 0.5) * 0.06, (R() - 0.5) * 0.25, 0.5 + R() * 0.5, (R() - 0.5) * 0.25, 0.45 + R() * 0.35, 0.05 + R() * 0.05, 0.05, 0.1, 0.045, 0.165);
+    }
+    // Violet light on her and a pool on the snow (short reach: no wash over the roof).
+    this.herLight.color.setHex(0x8a4cff);
+    this.herLight.distance = 4;
+    this.herLight.position.lerpVectors(hilt, tip, 0.55);
+    this.herLight.intensity = 5 * k * (0.85 + 0.15 * Math.sin(performance.now() * 0.031) * Math.sin(performance.now() * 0.017 + 1));
   }
 
   /** 2: a fistful of firecrackers flung ahead: a flash, then a string of cracks, sparks and smoke. */
@@ -243,14 +264,20 @@ export class Fx {
   /** 3: a burst of black feathers and shadow where she was (or where she comes out). */
   feathersBurst(p: THREE.Vector3, n = 70): void {
     const R = this.R;
-    for (let i = 0; i < n * 0.6; i++) {
+    // A vortex: flung out and round (tangential spin), then they seesaw slowly down (flutter, drag).
+    const spin = R() < 0.5 ? 1 : -1;
+    for (let i = 0; i < n * 3.2; i++) {
       const a = R() * Math.PI * 2;
-      const sp = 1.8 + R() * 3.8;
-      const y = p.y + 0.5 + R() * 1.3;
-      const v = 0.02 + R() * 0.03;
-      this.feathers.spawn(p.x + Math.cos(a) * 0.2, y, p.z + Math.sin(a) * 0.2, Math.cos(a) * sp, 1.2 + R() * 2.6, Math.sin(a) * sp, 0.8 + R() * 0.7, 0.014 + R() * 0.012, 0.035, v, v, v * 1.3);
+      const sr = 1.2 + R() * 3.6;
+      const st = spin * (1.5 + R() * 3.2);
+      const y = p.y + 0.15 + R() * 1.8;
+      const c = Math.cos(a);
+      const sn = Math.sin(a);
+      const v = 0.012 + R() * 0.03;
+      const big = R() < 0.3;
+      this.feathers.spawn(p.x + c * 0.25, y, p.z + sn * 0.25, c * sr - sn * st, 0.6 + R() * 3.2, sn * sr + c * st, 2.0 + R() * 1.8, big ? 0.03 + R() * 0.02 : 0.014 + R() * 0.014, 0.04, v, v, v * 1.35);
     }
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 26; i++) {
       const a = R() * Math.PI * 2;
       this.haze.spawn(p.x, p.y + 0.3 + R() * 1.2, p.z, Math.cos(a) * 1.2, 0.2 + R() * 0.5, Math.sin(a) * 1.2, 0.5 + R() * 0.4, 0.18 + R() * 0.16, 0.05, 0.02, 0.022, 0.04);
     }
@@ -268,6 +295,7 @@ export class Fx {
       this.wisps.spawn(_p.x + Math.cos(a) * r, Math.max(0.05, _p.y), _p.z + Math.sin(a) * r, -Math.cos(a) * 0.1, 0.25 + R() * 0.35, -Math.sin(a) * 0.1, 0.7 + R() * 0.6, 0.011 + R() * 0.009, 0.004, 0.7 * v, 2.1 * v, 1.4 * v);
     }
     this.herLight.color.setHex(0x7fd8b0);
+    this.herLight.distance = 2.2;
     this.herLight.position.lerpVectors(hips, head, 0.5);
     this.herLight.intensity = 0.8 * k;
   }
@@ -278,29 +306,46 @@ export class Fx {
    */
   rage(hips: THREE.Vector3, chest: THREE.Vector3, head: THREE.Vector3, yaw: number, dt: number, k: number, t: number): void {
     const R = this.R;
-    const n = Math.floor(dt * 60 * k + R());
+    const surge = 0.8 + 0.2 * Math.sin(t * 2.3) * Math.sin(t * 5.1 + 2);
+    // Aura: dark blood-red flame licking up the whole body, feet to horns (#B3121E → black).
+    const fl = Math.floor(dt * 210 * k * surge + R());
+    for (let i = 0; i < fl; i++) {
+      const v = R();
+      _p.set(hips.x, 0.05, hips.z).lerp(head, Math.min(1.08, v * 1.15));
+      const a = R() * Math.PI * 2;
+      const r = (0.24 + R() * 0.16) * (1 - 0.35 * v);
+      const hot = R() < 0.12;
+      this.wisps.spawn(_p.x + Math.cos(a) * r, _p.y, _p.z + Math.sin(a) * r, Math.cos(a) * 0.15, 0.9 + R() * 1.2, Math.sin(a) * 0.15, 0.25 + R() * 0.3, hot ? 0.025 + R() * 0.015 : 0.05 + R() * 0.06, 0.06, hot ? 4 : 2.0, hot ? 0.55 : 0.1, hot ? 0.18 : 0.04);
+    }
+    // Embers pouring off the armour: many, small, some hot, rising and drifting on the wind.
+    const n = Math.floor(dt * 170 * k + R());
     for (let i = 0; i < n; i++) {
       _p.lerpVectors(hips, head, R() * 1.05);
       const a = R() * Math.PI * 2;
-      const r = 0.22 + R() * 0.26;
-      const hot = R() < 0.3;
-      this.wisps.spawn(_p.x + Math.cos(a) * r, _p.y, _p.z + Math.sin(a) * r, (R() - 0.5) * 0.4, 0.9 + R() * 1.4, (R() - 0.5) * 0.4, 0.6 + R() * 0.8, 0.008 + R() * 0.008, 0.05, hot ? 5 : 1.6, hot ? 0.9 : 0.1, hot ? 0.3 : 0.03);
+      const r = 0.2 + R() * 0.22;
+      const hot = R() < 0.35;
+      this.wisps.spawn(_p.x + Math.cos(a) * r, _p.y, _p.z + Math.sin(a) * r, (R() - 0.5) * 0.6, 1.0 + R() * 1.8, (R() - 0.5) * 0.6, 0.7 + R() * 0.9, 0.007 + R() * 0.008, 0.05, hot ? 6 : 2.2, hot ? 1.2 : 0.15, hot ? 0.35 : 0.04);
     }
-    if (R() < dt * 16 * k) {
-      _p.lerpVectors(hips, chest, R());
-      this.haze.spawn(_p.x + (R() - 0.5) * 0.5, _p.y, _p.z + (R() - 0.5) * 0.5, (R() - 0.5) * 0.3, 0.6 + R() * 0.4, (R() - 0.5) * 0.3, 0.7 + R() * 0.5, 0.16 + R() * 0.14, 0.05, 0.03, 0.004, 0.004);
+    // Black smoke rolling up off him (the dark half of the aura).
+    const h = Math.floor(dt * 45 * k + R());
+    for (let i = 0; i < h; i++) {
+      _p.lerpVectors(hips, head, R());
+      this.haze.spawn(_p.x + (R() - 0.5) * 0.55, _p.y, _p.z + (R() - 0.5) * 0.55, (R() - 0.5) * 0.3, 0.7 + R() * 0.6, (R() - 0.5) * 0.3, 0.8 + R() * 0.6, 0.16 + R() * 0.16, 0.05, 0.045, 0.006, 0.006);
     }
-    // Eyes: a pair of short-lived hot points, re-laid every step so they track the head.
+    // Eyes: a pair of hot points in the menpo, re-laid every step so they track the head.
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
     const flick = 0.8 + 0.2 * Math.sin(t * 23) * Math.sin(t * 7.3);
     for (const sd of [-1, 1]) {
       const ex = head.x + fx * 0.15 + fz * 0.042 * sd;
       const ez = head.z + fz * 0.15 - fx * 0.042 * sd;
-      this.wisps.spawn(ex, head.y + 0.015, ez, 0, 0, 0, 0.05, 0.03 * k, 0.02, 14 * flick * k, 2.2 * flick * k, 0.8 * k);
+      this.wisps.spawn(ex, head.y + 0.015, ez, 0, 0, 0, 0.05, 0.04 * k, 0.02, 18 * flick * k, 2.6 * flick * k, 0.9 * k);
     }
-    this.hisLight.position.copy(chest);
-    this.hisLight.intensity = 1.1 * k * (0.75 + 0.25 * Math.sin(t * 3.1) * Math.sin(t * 1.7 + 1));
+    // A red pool of light on the snow around him, breathing with the flames.
+    this.hisLight.distance = 6;
+    this.hisLight.decay = 1.3;
+    this.hisLight.position.set(chest.x, 0.45, chest.z);
+    this.hisLight.intensity = 18 * k * surge;
   }
 
   /** Regular block: dull, sparse sparks. */
@@ -509,6 +554,7 @@ export class Fx {
     this.haze.clear();
     this.pops.length = 0;
     this.herLight.intensity = 0;
+    this.curseTipOk = false;
     this.hisLight.intensity = 0;
     this.glyph.hide();
     this.dot.active = false;

@@ -131,7 +131,7 @@ void mainUv(inout vec2 uv) {
   if (m <= 0.0) return;
   vec2 q = uv * vec2(aspect, 1.0) * 38.0 + vec2(0.0, -uTime * 2.6);
   vec2 o = vec2(hn(q) - 0.5, hn(q + 17.3) - 0.5);
-  uv += o * 0.0045 * uK * m;
+  uv += o * 0.0055 * uK * m;
 }`;
 
 class ShockEffect extends Effect {

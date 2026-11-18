@@ -10,6 +10,9 @@ import { ARENA_HALF, RIDGE_Z } from "../world/Arena";
 
 export type CamMode = "title" | "intro" | "lock" | "free" | "finisher" | "death" | "victory";
 
+/** Where the keep stands on the horizon (the title shot looks at it). */
+const KEEP_X = -3.5;
+const KEEP_Z = -14;
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 
@@ -31,6 +34,10 @@ export class CameraRig {
   /** Lock-on toggled: follow rates ease in so the re-frame doesn't whip. */
   private swap = false;
   baseFov = 52;
+  /** Crow step: hold the shot on the feathers while she is gone, then a wide two-shot. */
+  private holdT = 0;
+  private wideT = 0;
+  private wideCut = false;
   /** Test harness: fixed camera. */
   override: { pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
 
@@ -48,6 +55,18 @@ export class CameraRig {
 
   shake(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
+  }
+
+  /** She vanished: keep the frame on the burst instead of swinging round him. */
+  hold(t: number): void {
+    this.holdT = t;
+  }
+
+  /** She came out behind him: cut to a wider two-shot from her new side, then ease back in. */
+  cutWide(): void {
+    this.holdT = 0;
+    this.wideT = 1.6;
+    this.wideCut = true;
   }
 
   punch(amount: number): void {
@@ -102,6 +121,29 @@ export class CameraRig {
       L.copy(playerChest).lerp(bossChest, 0.6);
       L.y = lerp(playerChest.y, bossChest.y, 0.5) - 0.2;
       this.yaw = Math.atan2(-back.x, -back.z);
+      // Crow step: a side-on two-shot (both in profile, never overlapping), always from the
+      // keep-facing side of the roof, then it eases back to the shoulder.
+      const wide = smooth(clamp(this.wideT / 0.9, 0, 1));
+      if (wide > 0) {
+        const mx = (player.x + boss.x) / 2;
+        const mz = (player.z + boss.z) / 2;
+        // The side of the pair that looks toward the keep (the art-directed view), turned a
+        // little further toward it: a three-quarter shot with the keep behind them.
+        let kx = KEEP_X - mx;
+        let kz = KEEP_Z - mz;
+        const kl = Math.hypot(kx, kz) || 1;
+        kx /= kl;
+        kz /= kl;
+        const side = _w.set(back.z, 0, -back.x);
+        if (side.x * kx + side.z * kz > 0) side.negate();
+        side.x -= kx * 0.55;
+        side.z -= kz * 0.55;
+        side.normalize();
+        _v.set(mx + side.x * 4.6, 2.0, mz + side.z * 4.6);
+        P.lerp(_v, wide);
+        _v.set(mx, lerp(playerChest.y, bossChest.y, 0.5) - 0.15, mz);
+        L.lerp(_v, wide);
+      }
       if (this.mode === "intro") {
         if (this.introCut) {
           this.introCut = false;
@@ -172,6 +214,16 @@ export class CameraRig {
       rate *= e;
       lookRate *= e;
       if (u >= 1) this.swap = false;
+    }
+    this.wideT = Math.max(0, this.wideT - dt);
+    if (this.holdT > 0 && (this.mode === "lock" || this.mode === "free")) {
+      this.holdT -= dt;
+      P.copy(this.pos);
+      L.copy(this.look);
+    }
+    if (this.wideCut) {
+      this.wideCut = false;
+      if (this.mode === "lock") rate = lookRate = 1000;
     }
     if (this.override) {
       P.copy(this.override.pos);

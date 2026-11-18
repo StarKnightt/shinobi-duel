@@ -16,7 +16,7 @@ const bodies = loadBodies({ player: game.shinobi, boss: game.general }, (who, bo
 if (new URLSearchParams(location.search).get("debug") === "anim") void import("./debug/AnimDebug").then((m) => m.mountAnimDebug(game));
 
 type SceneName = "title" | "fight" | "thrust" | "overhead" | "deflect" | "break" | "finisher" | "finisher2" | "victory" | "portrait" | "portrait2" | "closeP" | "closeB" | "closeP2"
-  | "curse" | "curseHit" | "crackers" | "crow" | "crow2" | "phase2" | "heal";
+  | "curse" | "curseHit" | "curseSwing" | "crackers" | "crow" | "crow2" | "crow3" | "phase2" | "heal";
 
 function until(pred: () => boolean, max = 6, dt = 1 / 60): boolean {
   for (let t = 0; t < max; t += dt) {
@@ -84,6 +84,18 @@ function scene(name: SceneName): Record<string, unknown> {
       }
       break;
     }
+    case "curseSwing": {
+      // Mid-swing with the blade burning: the trail of fire hanging in the arc.
+      close(3.6);
+      game.input.press("ability1");
+      game.input.release("ability1");
+      game.step(1.0);
+      b.passive = true;
+      game.input.press("attack");
+      game.input.release("attack");
+      game.step(0.2);
+      break;
+    }
     case "crackers":
       close(3);
       game.input.press("ability2");
@@ -92,10 +104,11 @@ function scene(name: SceneName): Record<string, unknown> {
       break;
     case "crow":
     case "crow2":
+    case "crow3":
       close(2.6);
       game.input.press("ability3");
       game.input.release("ability3");
-      game.step(name === "crow" ? 0.2 : 0.42);
+      game.step(name === "crow" ? 0.2 : name === "crow2" ? 0.42 : 0.95);
       break;
     case "phase2":
       close(3.2);

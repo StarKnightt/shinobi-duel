@@ -1441,6 +1441,7 @@ export class Game {
     const p = this.player;
     const b = this.boss;
     this.fx.feathersBurst(p.pos, 90);
+    this.cam.hold(1);
     this.playerBody.setVisible(false);
     this.pending = null;
     this.releaseHolds();
@@ -1465,7 +1466,8 @@ export class Game {
     this.playerBody.resetCloth();
     p.ch.rig.resetTrail();
     this.playerBody.setVisible(true);
-    this.fx.feathersBurst(p.pos, 45);
+    this.fx.feathersBurst(p.pos, 70);
+    this.cam.cutWide();
     this.audio.crowAppear();
   }
 
@@ -1482,7 +1484,7 @@ export class Game {
     this.healK += (hWant - this.healK) * Math.min(1, g * (hWant > this.healK ? 6 : 2.5));
     if (this.curseK > 0.01) {
       this.fx.curseBlade(p.ch.rig.hiltW, p.ch.rig.tipW, g, this.curseK);
-      this.playerBody.setGlow(GLOW_CURSE, 0.3 * this.curseK, 0.08 * this.curseK);
+      this.playerBody.setGlow(GLOW_CURSE, 0.42 * this.curseK, 0.14 * this.curseK);
     }
     if (this.healK > 0.01) {
       this.fx.healMotes(p.ch.rig.hipsW, p.ch.rig.headW, g, this.healK);
@@ -1491,6 +1493,7 @@ export class Game {
     if (this.curseK <= 0.01 && this.healK <= 0.01) {
       this.playerBody.setGlow(null);
       this.fx.herLight.intensity = 0;
+      this.fx.curseTipOk = false;
     }
     // Rage: builds through the rise, stays for the second life, drains at the end.
     const alive = b.phase === 2 && b.state !== "finished" && b.state !== "dead";
@@ -1499,7 +1502,7 @@ export class Game {
     if (this.rageK > 0.01) {
       const r = b.ch.rig;
       this.fx.rage(r.hipsW, r.chestW, r.headW, b.yaw, g, this.rageK, this.gameTime);
-      this.bossBody.setGlow(GLOW_RAGE, 0.5 * this.rageK, 0.04 * this.rageK);
+      this.bossBody.setGlow(GLOW_RAGE, 0.85 * this.rageK, 0.06 * this.rageK);
     } else {
       this.bossBody.setGlow(null);
       this.fx.hisLight.intensity = 0;
@@ -1742,7 +1745,7 @@ export class Game {
     const pf = p.health / PLAYER_MAX.health;
     const ab = p.abil;
     this.hud.abilities(ABILITY_IDS.map((id) => ({ id, charge: ab.charge(id), burn: id === "curse" && ab.cursed })));
-    this.post.heat(_a.copy(b.ch.rig.chestW).add(this.interp.b), 2.3, this.rageK * 0.9, dt);
+    this.post.heat(_a.copy(b.ch.rig.chestW).add(this.interp.b), 2.6, this.rageK * 1.4, dt);
     this.hud.update(
       dt,
       { health: b.health, posture: b.posture, broken: b.state === "stagger", markers: b.markers, limited: vitalityRegen(b.health / BOSS_MAX.health) < 0.5 },

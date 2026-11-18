@@ -84,6 +84,8 @@ export interface SkinnedConfig {
   kicks: BoneKick[];
   /** Bones collapsed to nothing (their skin with them): the model's own head under a reused helmet. */
   hide?: string[];
+  /** Meshes hidden outright (exact names), e.g. a helmet the reused kabuto replaces. */
+  hideMeshes?: string[];
   /** Reused procedural parts: `part` names a group the procedural body exposes. */
   attach: (Socket & { part: string })[];
   /** Reused procedural cloth (index into the procedural body's cloths), pinned to a bone. */
@@ -247,11 +249,14 @@ export const BOSS_SKIN: SkinnedConfig = {
   events: MIXAMO_BOSS,
   plans: MIXAMO_BOSS_PLANS,
   kicks: SPINE_KICK,
-  // The horned kabuto + menpō (the procedural head group) over the Paladin's helmet, and the sode.
+  // The Paladin's own helmet would poke through the close-fitting kabuto. (The export's names are
+  // swapped: "Paladin_J_Nordstrom" is the 932-vertex helmet, "..._Helmet" the 8.6k-vertex body.)
+  hideMeshes: ["Paladin_J_Nordstrom"],
+  // The horned kabuto + menpō (the procedural head group) in place of the Paladin's helmet, and the sode.
   attach: [
-    { part: "head", bone: "Head", offset: [0, -0.05, 0.0], rot: [0, 0, 0], scale: 1.2 },
-    { part: "sodeR", bone: "RightShoulder", offset: [-0.08, -0.02, 0], rot: [0, 0, 0], scale: 1.2 },
-    { part: "sodeL", bone: "LeftShoulder", offset: [0.08, -0.02, 0], rot: [0, 0, 0], scale: 1.2 },
+    { part: "head", bone: "Head", offset: [0, -0.05, 0.0], rot: [0, 0, 0], scale: 1.12 },
+    { part: "sodeR", bone: "RightShoulder", offset: [-0.08, -0.02, 0], rot: [0, 0, 0], scale: 1.08 },
+    { part: "sodeL", bone: "LeftShoulder", offset: [0.08, -0.02, 0], rot: [0, 0, 0], scale: 1.08 },
   ],
   // Tattered cape pinned across the upper back.
   cloth: [{ index: 0, socket: { bone: "Spine2", offset: [0, -0.12, 0], rot: [0, 0, 0], scale: 1.2 } }],

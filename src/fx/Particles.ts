@@ -74,6 +74,8 @@ export class Streaks {
   alpha = 1;
   /** Width multiplier gained over a particle's life (soft mist puffs swell as they fade). */
   grow = 0;
+  /** Side-to-side sway (m/s²) so light things seesaw down like feathers instead of dropping. */
+  flutter = 0;
   /** Called when a particle hits the floor (ink splats). */
   onLand: ((x: number, z: number, size: number) => void) | null = null;
   readonly rand = rng(1234);
@@ -167,6 +169,13 @@ export class Streaks {
       let vx = this.vel[i * 3] * dragK;
       let vy = this.vel[i * 3 + 1] * dragK + this.gravity * dt;
       let vz = this.vel[i * 3 + 2] * dragK;
+      if (this.flutter) {
+        // Phase from the particle's own lifetime (stable through compaction).
+        const ph = this.maxLife[i] * 97.1;
+        const age = this.maxLife[i] - life;
+        vx += Math.sin(age * 5.2 + ph) * this.flutter * dt;
+        vz += Math.cos(age * 4.6 + ph * 1.3) * this.flutter * dt;
+      }
       px += vx * dt;
       py += vy * dt;
       pz += vz * dt;

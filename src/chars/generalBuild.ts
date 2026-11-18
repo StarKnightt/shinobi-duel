@@ -83,6 +83,8 @@ export function buildGeneral(r: Rig, d: RigDims): GeneralParts {
     1.2,
   );
   const gold = rimLit(new THREE.MeshStandardMaterial({ color: 0xb3a68a, metalness: 1, roughness: 0.32, emissive: 0x140e06, emissiveIntensity: 0.3 }), 1.0);
+  // Horns: dark antique gold (pale brass reads white under the moon and turns them into antennae).
+  const hornGold = rimLit(new THREE.MeshStandardMaterial({ color: 0x8c6a32, metalness: 1, roughness: 0.4, emissive: 0x120804, emissiveIntensity: 0.3 }), 0.8);
   const redIron = rimLit(
     withSet(new THREE.MeshPhysicalMaterial({ color: 0xc8c0bc, roughness: 0.38, metalness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.2 }), ironSet("#7a1510", 206, { rust: 0.3 }), [1, 1], 0.8),
     1.1,
@@ -191,37 +193,52 @@ export function buildGeneral(r: Rig, d: RigDims): GeneralParts {
     const a = (k / 10) * Math.PI * 0.5;
     bowlProf.push(new THREE.Vector2(Math.cos(a) * 0.135 + 0.001, Math.sin(a) * 0.125));
   }
-  const bowl = new THREE.LatheGeometry(bowlProf.reverse(), 32);
-  bowl.scale(1, 1, 1.08);
-  add(r.head, bowl, iron, V(0, 0.15, 0));
-  for (let s = 0; s < 20; s++) {
-    const pts: THREE.Vector3[] = [];
-    const a = (s / 20) * Math.PI * 2;
-    for (let k = 0; k <= 6; k++) {
-      const t = (k / 6) * Math.PI * 0.46;
-      pts.push(V(Math.sin(a) * Math.cos(t) * 0.137, 0.15 + Math.sin(t) * 0.127, Math.cos(a) * Math.cos(t) * 0.148));
+  // Suji-bachi: the ridges are raised in the bowl's own surface (thin tubes catch the fresnel rim
+  // over their whole width and read as a white birdcage).
+  const bowl = new THREE.LatheGeometry(bowlProf.reverse(), 120);
+  {
+    const bp = bowl.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < bp.count; i++) {
+      const x = bp.getX(i);
+      const z = bp.getZ(i);
+      const ridge = 1 + 0.03 * Math.pow(Math.max(0, Math.cos(Math.atan2(x, z) * 20)), 10);
+      bp.setX(i, x * ridge);
+      bp.setZ(i, z * ridge);
     }
-    add(r.head, tube(pts, 0.0045, 0.003, 1, 8, 4), blackLac);
+    bowl.computeVertexNormals();
   }
+  bowl.scale(1, 1, 1.08);
+  add(r.head, bowl, blackLac, V(0, 0.15, 0));
   add(r.head, new THREE.TorusGeometry(0.022, 0.007, 6, 14), gold, V(0, 0.275, 0), new THREE.Euler(Math.PI / 2, 0, 0));
   // Koshimaki band and peak.
   add(r.head, loft([{ y: 0.14, w: 0.14, d: 0.151 }, { y: 0.165, w: 0.138, d: 0.149 }], 32), gold);
   add(r.head, loft([{ y: 0.155, w: 0.15, d: 0.17 }, { y: 0.14, w: 0.18, d: 0.22 }], 20, { t0: -1.1, t1: 1.1 }), blackLac);
-  // Shikoro: four wide flaring lames, open at the face.
-  const shik = lameStack(4, 0.06, 0.055, (k) => [0.148 + k * 0.045, 0.19 + k * 0.045], 0.95, Math.PI * 2 - 0.95, 26, 0.008);
+  // Shikoro: four close-fitting lames sloping down over the nape and shoulders (hineno style),
+  // open at the face; a gold-edged bottom lame. Tight to the head so the silhouette stays a head,
+  // not a hat: the horns carry the menace.
+  const shik = lameStack(4, 0.052, 0.044, (k) => [0.146 + k * 0.019, 0.163 + k * 0.019], 1.05, Math.PI * 2 - 1.05, 28, 0.007);
   add(r.head, shik, lameFine, V(0, 0.145, 0));
-  const shikB = lameStack(1, 0.06, 0.055, () => [0.33, 0.35], 0.95, Math.PI * 2 - 0.95, 26, 0.01);
-  add(r.head, shikB, lameGold, V(0, 0.145 - 4 * 0.055, 0));
+  const shikB = lameStack(1, 0.05, 0.044, () => [0.222, 0.236], 1.05, Math.PI * 2 - 1.05, 28, 0.009);
+  add(r.head, shikB, lameGold, V(0, 0.145 - 4 * 0.044, 0));
   // Fukigaeshi: the top lames turned back beside the face.
   for (const s of [-1, 1]) {
-    const f = lameStack(2, 0.05, 0.045, (k) => [0.12 + k * 0.01, 0.13 + k * 0.01], -0.5, 0.5, 8, 0.008);
+    const f = lameStack(2, 0.045, 0.04, (k) => [0.1 + k * 0.01, 0.11 + k * 0.01], -0.45, 0.45, 8, 0.007);
     f.rotateY(s * 1.25);
-    add(r.head, f, lameSmGold, V(s * 0.06, 0.16, 0.13), new THREE.Euler(0, s * 0.4, s * 0.15));
+    add(r.head, f, lameSm, V(s * 0.075, 0.165, 0.11), new THREE.Euler(0, s * 0.55, s * 0.2));
   }
-  // Kuwagata: tall golden horns flattened into blades, and a sun-disc crest.
+  // Kuwagata: broad horn-blades sweeping out of the brow and hooking inward at the tips (an oni's
+  // horns, not antennae). Flat plates, as a real kuwagata is: a thin tube catches the fresnel rim
+  // over its whole width and reads white whatever its colour.
   for (const s of [-1, 1]) {
-    const pts = [V(s * 0.03, 0.18, 0.15), V(s * 0.09, 0.26, 0.19), V(s * 0.17, 0.42, 0.18), V(s * 0.23, 0.6, 0.1), V(s * 0.24, 0.74, -0.02)];
-    add(r.head, tube(pts, 0.026, 0.004, 0.35, 24, 7), gold);
+    const sh = new THREE.Shape();
+    const P = (pts: [number, number][]) => pts.map(([x, y]) => new THREE.Vector2(s * x, y));
+    sh.moveTo(s * 0.02, 0);
+    sh.splineThru(P([[0.1, 0.045], [0.19, 0.12], [0.245, 0.22], [0.24, 0.31], [0.19, 0.37]]));
+    sh.splineThru(P([[0.2, 0.31], [0.195, 0.235], [0.155, 0.16], [0.085, 0.095], [0.02, 0.055]]));
+    sh.closePath();
+    const hg = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 1, curveSegments: 10 });
+    hg.translate(0, 0, -0.006);
+    add(r.head, hg, hornGold, V(0, 0.2, 0.158), new THREE.Euler(-0.22, s * -0.18, 0));
   }
   add(r.head, new THREE.CylinderGeometry(0.045, 0.045, 0.01, 24), gold, V(0, 0.235, 0.165), new THREE.Euler(Math.PI / 2 - 0.2, 0, 0));
   add(r.head, new THREE.CylinderGeometry(0.03, 0.03, 0.014, 20), redIron, V(0, 0.235, 0.17), new THREE.Euler(Math.PI / 2 - 0.2, 0, 0));
