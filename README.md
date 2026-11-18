@@ -10,6 +10,9 @@ whittling down a health bar, and then you drive the deathblow home. He gets up o
 **Play it: https://starknightt.github.io/shinobi-duel/** — desktop Chrome or Edge, keyboard and
 mouse. Any key on the title starts the fight; that key also starts the sound.
 
+**Also on Wavedash: https://wavedash.com/games/shinobi-duel**, with achievements and a
+fastest-victory leaderboard for each difficulty.
+
 It was built and measured on an RTX 4060 and wants a desktop GPU. The download is about 22 MB (the
 arena is 13 MB of it) and it streams in behind the title screen.
 

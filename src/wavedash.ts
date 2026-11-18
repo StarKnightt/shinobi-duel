@@ -44,9 +44,18 @@ export const wavedash = {
     } catch {}
   },
 
-  ready(): void {
+  /**
+   * Wavedash.init() is what reveals the game from behind Wavedash's loading screen: without it the
+   * page sits at "Still Loading 0%" forever. The platform defines Wavedash before our code runs,
+   * but if it ever shows up late, keep looking for a while instead of silently skipping init.
+   */
+  ready(tries = 0): void {
     const s = sdk();
-    if (!s || initialized) return;
+    if (initialized) return;
+    if (!s) {
+      if (tries < 100) setTimeout(() => wavedash.ready(tries + 1), 100);
+      return;
+    }
     initialized = true;
     try {
       s.updateLoadProgressZeroToOne(1);
