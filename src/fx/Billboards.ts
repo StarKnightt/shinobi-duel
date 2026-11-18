@@ -170,11 +170,13 @@ export class DeathDot {
         void main() {
           vec2 p = (vUv - 0.5) * 2.0;
           float r = length(p);
-          float core = 1.0 - smoothstep(0.14, 0.2, r);
-          float glow = exp(-r * 5.0) * (0.7 + 0.3 * sin(uT * 7.0));
-          float dr = (r - fract(uT * 0.8) * 0.9) * 16.0;
-          float ring = exp(-dr * dr) * (1.0 - fract(uT * 0.8));
-          vec3 col = vec3(8.0, 0.25, 0.12) * core + vec3(3.0, 0.08, 0.04) * glow + vec3(2.5, 0.1, 0.05) * ring;
+          // A hard blood-red bead with a hot heart and a tight breathing glow (no flat disc).
+          float core = 1.0 - smoothstep(0.1, 0.14, r);
+          float heart = exp(-r * r * 400.0);
+          float glow = exp(-r * 11.0) * (0.65 + 0.35 * sin(uT * 7.0));
+          float dr = (r - fract(uT * 0.8) * 0.8) * 26.0;
+          float ring = exp(-dr * dr) * (1.0 - fract(uT * 0.8)) * 0.6;
+          vec3 col = vec3(7.0, 0.22, 0.1) * core + vec3(9.0, 3.0, 1.6) * heart + vec3(2.2, 0.06, 0.03) * glow + vec3(2.0, 0.08, 0.04) * ring;
           gl_FragColor = vec4(col * uA, 1.0);
         }`,
       transparent: true,

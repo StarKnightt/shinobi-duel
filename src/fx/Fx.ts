@@ -9,11 +9,15 @@ import { Splats, Streaks, coneDir } from "./Particles";
 
 const _d = new THREE.Vector3();
 const _p = new THREE.Vector3();
+const _side = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
 
 export class Fx {
   readonly sparks = new Streaks(1600, "add");
   /** White flecks keep their colour (no cooling) and fall. */
   readonly flecks = new Streaks(400, "add");
+  /** Slow embers that rain down after a deflect, bounce on the snow and cool to red. */
+  readonly embers = new Streaks(600, "add");
   readonly smoke = new Streaks(260, "ink");
   readonly ink = new Streaks(900, "ink");
   readonly dust = new Streaks(500, "ink");
@@ -23,7 +27,9 @@ export class Fx {
   readonly streak = new Flash("streak");
   readonly glyph = new PerilGlyph();
   readonly dot = new DeathDot();
-  readonly light = new THREE.PointLight(0xff9a40, 0, 9, 2);
+  /** The clash lights the night: both fighters, the blades and the snow round their feet. */
+  readonly light = new THREE.PointLight(0xff9a40, 0, 16, 1.6);
+  private lightTau = 0.07;
   private lightT = 1;
   private lightPeak = 0;
   private readonly R = this.sparks.rand;
@@ -38,7 +44,7 @@ export class Fx {
     this.dust.cooling = false;
     this.dust.gravity = -2.5;
     this.dust.drag = 2.4;
-    this.dust.alpha = 0.55;
+    this.dust.alpha = 0.38;
     this.dust.floorY = -1;
     this.flecks.cooling = false;
     this.flecks.drag = 2.2;
@@ -50,42 +56,53 @@ export class Fx {
     this.smoke.alpha = 0.32;
     this.smoke.floorY = -10;
     this.smoke.grow = 1.6;
-    scene.add(this.flecks.mesh, this.smoke.mesh, this.streak.mesh, this.sparks.mesh, this.ink.mesh, this.dust.mesh, this.splats.mesh, this.flash.mesh, this.glintFlash.mesh, this.dot.mesh, this.light);
+    this.embers.gravity = -3.2;
+    this.embers.drag = 1.1;
+    this.embers.bounce = 0.35;
+    scene.add(this.embers.mesh, this.flecks.mesh, this.smoke.mesh, this.streak.mesh, this.sparks.mesh, this.ink.mesh, this.dust.mesh, this.splats.mesh, this.flash.mesh, this.glintFlash.mesh, this.dot.mesh, this.light);
   }
 
   /**
-   * Perfect deflect, layered like the reference footage (all gone within ~0.3 s):
-   * hot core + shockwave ring, a short horizontal flare, ~150 tiny gold specks,
-   * 6-10 long orange ember petals, ~60 white flecks fanning away from the attacker, dark smoke.
+   * Perfect deflect, layered like the reference footage (the burst gone within ~0.3 s, embers
+   * linger): a white-hot pin core with a four-point lens star and a screen-wide anamorphic
+   * flare, ~220 fast gold needles fanning off the blades, 10-14 long arcing petals, white
+   * flecks, a slow rain of embers that bounce on the snow, a puff of dark smoke, and a hard
+   * orange light that throws both fighters' shadows for a frame.
    */
   deflect(p: THREE.Vector3, out: THREE.Vector3, power = 1): void {
     const R = this.R;
-    const n = Math.round(150 * power);
+    const n = Math.round(180 * power);
+    // Two wings flung sideways off the blades (screen-wide spray), a little burst all round.
+    _side.crossVectors(out, _up).normalize();
     for (let i = 0; i < n; i++) {
-      coneDir(out, i < n * 0.6 ? Math.PI : 1.4, R, _d);
-      const sp = 1.5 + Math.pow(R(), 0.7) * 7 * power;
-      const hot = R() < 0.3;
+      if (i < n * 0.16) coneDir(out, Math.PI, R, _d);
+      else {
+        _p.copy(_side).multiplyScalar(i & 1 ? 1 : -1).addScaledVector(out, 0.35).addScaledVector(_up, 0.25).normalize();
+        coneDir(_p, 0.42, R, _d);
+      }
+      const sp = 2 + Math.pow(R(), 0.7) * 7.5 * power;
+      const hot = R() < 0.35;
       this.sparks.spawn(
-        p.x + (R() - 0.5) * 0.06,
-        p.y + (R() - 0.5) * 0.06,
-        p.z + (R() - 0.5) * 0.06,
+        p.x + (R() - 0.5) * 0.05,
+        p.y + (R() - 0.5) * 0.05,
+        p.z + (R() - 0.5) * 0.05,
         _d.x * sp,
         _d.y * sp,
         _d.z * sp,
-        0.12 + R() * 0.24,
-        0.006 + R() * 0.008,
-        0.012,
-        hot ? 12 : 9,
-        hot ? 8 : 5.2,
-        hot ? 3.5 : 1.6,
+        0.08 + R() * 0.22,
+        0.004 + R() * 0.006,
+        0.014,
+        hot ? 14 : 10,
+        hot ? 9 : 5.5,
+        hot ? 4.5 : 1.7,
       );
     }
-    const petals = Math.round((6 + R() * 4) * Math.min(1.3, power));
+    const petals = Math.round((10 + R() * 4) * Math.min(1.4, power));
     for (let i = 0; i < petals; i++) {
       coneDir(out, 1.25, R, _d);
-      _d.y += 0.15;
-      const sp = 5 + R() * 4;
-      this.sparks.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 0.2 + R() * 0.12, 0.022 + R() * 0.012, 0.045, 7, 3.2, 1.3);
+      _d.y += 0.25;
+      const sp = 5.5 + R() * 5;
+      this.sparks.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 0.28 + R() * 0.2, 0.02 + R() * 0.012, 0.05, 8, 3.6, 1.4);
     }
     for (let i = 0; i < 60 * power; i++) {
       coneDir(out, 1.4, R, _d);
@@ -93,14 +110,20 @@ export class Fx {
       const sp = 2.5 + R() * 5;
       this.flecks.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 0.25 + R() * 0.3, 0.005, 0.016, 3.2, 3.1, 2.9);
     }
+    for (let i = 0; i < 46 * power; i++) {
+      coneDir(_p.set(out.x, out.y + 0.8, out.z).normalize(), 1.1, R, _d);
+      const sp = 1 + R() * 3.2;
+      this.embers.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp, _d.z * sp, 0.7 + R() * 0.9, 0.007 + R() * 0.006, 0.02, 9, 4.2, 1.2);
+    }
     for (let i = 0; i < 8; i++) {
       coneDir(out, 1.2, R, _d);
       const sp = 0.3 + R() * 0.7;
-      this.smoke.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp + 0.2, _d.z * sp, 0.4 + R() * 0.2, 0.12 + R() * 0.1, 0.05, 0.18, 0.155, 0.145);
+      this.smoke.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp + 0.2, _d.z * sp, 0.4 + R() * 0.2, 0.12 + R() * 0.1, 0.05, 0.05, 0.055, 0.07);
     }
-    this.flash.fire(p, 1.9 * power, new THREE.Color(9, 5.2, 2.2), 0.2, 1);
-    this.streak.fire(p, 3.2, new THREE.Color(7, 4.4, 2.2), 0.08);
-    this.pulseLight(p, 22 * power, 0xffb070);
+    // No shockwave ring here: the ripple is a refraction in post (Post.shock), not a drawn circle.
+    this.flash.fire(p, 0.95 * power, new THREE.Color(14, 9, 5), 0.14, 0, 0.75);
+    this.streak.fire(p, 4.2, new THREE.Color(5, 4.2, 3.4), 0.1);
+    this.pulseLight(p, 24 * power, 0xffa860, 0.09);
   }
 
   /** Regular block: dull, sparse sparks. */
@@ -123,7 +146,7 @@ export class Fx {
       const sp = 2 + R() * 7;
       this.sparks.spawn(p.x, p.y, p.z, _d.x * sp, _d.y * sp + 1, _d.z * sp, 0.18 + R() * 0.3, 0.009, 0.028, 8, 3.6, 1.1);
     }
-    this.flash.fire(p, 0.9, new THREE.Color(6, 3.4, 1.6), 0.12, 0.3);
+    this.flash.fire(p, 0.9, new THREE.Color(6, 3.4, 1.6), 0.12, 0, 0.35);
     this.pulseLight(p, 18, 0xff9a40);
   }
 
@@ -186,7 +209,7 @@ export class Fx {
         red ? 0.025 : 0.01,
       );
     }
-    this.flash.fire(p, 2.2, new THREE.Color(5, 0.4, 0.25), 0.3, 0.6);
+    this.flash.fire(p, 2.2, new THREE.Color(5, 0.4, 0.25), 0.3, 0, 0.4);
     this.pulseLight(p, 40, 0xff3a20);
   }
 
@@ -196,7 +219,7 @@ export class Fx {
     for (let i = 0; i < 22; i++) {
       const a = R() * Math.PI * 2;
       const sp = 0.8 + R() * 1.6;
-      this.dust.spawn(p.x + Math.cos(a) * 0.15, 0.05 + R() * 0.08, p.z + Math.sin(a) * 0.15, Math.cos(a) * sp, 0.3 + R() * 0.6, Math.sin(a) * sp, 0.35 + R() * 0.3, 0.025 + R() * 0.03, 0.03, 0.8, 0.84, 0.92);
+      this.dust.spawn(p.x + Math.cos(a) * 0.15, 0.05 + R() * 0.08, p.z + Math.sin(a) * 0.15, Math.cos(a) * sp, 0.3 + R() * 0.6, Math.sin(a) * sp, 0.35 + R() * 0.3, 0.018 + R() * 0.022, 0.03, 0.42, 0.47, 0.6);
     }
   }
 
@@ -214,12 +237,12 @@ export class Fx {
         Math.cos(a) * sp,
         0.4 + R() * 1.2,
         Math.sin(a) * sp,
-        0.55 + R() * 0.6,
-        0.035 + R() * 0.055,
+        0.45 + R() * 0.5,
+        0.022 + R() * 0.035,
         0.03,
-        0.8,
-        0.84,
-        0.92,
+        0.42,
+        0.47,
+        0.6,
       );
     }
   }
@@ -236,23 +259,25 @@ export class Fx {
     }
   }
 
-  private pulseLight(p: THREE.Vector3, peak: number, color: number): void {
+  private pulseLight(p: THREE.Vector3, peak: number, color: number, tau = 0.07): void {
     this.light.position.copy(p);
     this.light.color.setHex(color);
     this.lightPeak = peak;
     this.lightT = 0;
+    this.lightTau = tau;
   }
 
   /** Real-time effects (keep moving through hitstop). */
   updateReal(dt: number): void {
     this.sparks.update(dt);
     this.flecks.update(dt);
+    this.embers.update(dt);
     this.smoke.update(dt);
     this.flash.update(dt);
     this.streak.update(dt);
     this.glintFlash.update(dt);
     this.lightT += dt;
-    this.light.intensity = this.lightPeak * Math.exp(-this.lightT / 0.07);
+    this.light.intensity = this.lightPeak * Math.exp(-this.lightT / this.lightTau);
   }
 
   /** Game-time effects (slow down with the finisher). */
@@ -264,6 +289,7 @@ export class Fx {
   clear(): void {
     this.sparks.clear();
     this.flecks.clear();
+    this.embers.clear();
     this.smoke.clear();
     this.ink.clear();
     this.dust.clear();

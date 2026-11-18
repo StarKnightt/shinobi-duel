@@ -1,9 +1,10 @@
 /**
  * Post pipeline (pmndrs/postprocessing):
- *   scene (HDR half-float, MSAA) → N8AO contact shadows → god rays + mipmap bloom (sparks, lanterns,
- *   sun) → grade: exposure, hue-preserving filmic curve, then in display space a cold-lift /
- *   warm-gain split tone, luminance-keyed saturation (muted mid-tones, hot highlights keep their
- *   colour), soft S-curve, paper grain (the painterly touch), hit flash, finisher desaturation,
+ *   scene (HDR half-float, MSAA) → N8AO contact shadows → deflect shockwave (a refractive ripple
+ *   out of the clash point) → moonbeams + mipmap bloom (sparks, lanterns, moon) → grade:
+ *   exposure, hue-preserving filmic curve, then in display space a teal-steel shadow tint and a
+ *   warm gain kept for the brightest things (lanterns, sparks: the only heat in the night),
+ *   luminance-keyed saturation, a hard S-curve, fine grain, hit flash, finisher bleed,
  *   cinematic bars → chromatic aberration (pulses on hits) + vignette.
  */
 import * as THREE from "three";
@@ -23,15 +24,15 @@ import { N8AOPostPass } from "n8ao";
 
 /** Tuned grade (see TASKS.md "Lighting pass"). */
 export const GRADE = {
-  exposure: 0.8,
-  /** Saturation of shadows / mid-tones and of bright highlights (sparks, lanterns, sun). */
-  satLow: 0.8,
-  satHigh: 1.12,
+  exposure: 0.92,
+  /** Saturation of shadows / mid-tones and of bright highlights (sparks, lanterns, moon). */
+  satLow: 0.72,
+  satHigh: 1.3,
   /** Lift added to the shadows (display space, cold) and gain on the highlights (warm). */
-  lift: [0.008, 0.02, 0.05],
-  gain: [1.04, 0.99, 0.93],
-  contrast: 0.32,
-  grain: 0.024,
+  lift: [0.0, 0.006, 0.016],
+  gain: [1.05, 1.0, 0.95],
+  contrast: 0.5,
+  grain: 0.018,
 };
 
 const GRADE_FRAG = /* glsl */ `
@@ -65,14 +66,15 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   c = mix(vec3(l), c, mix(uSatLow, uSatHigh, smoothstep(0.6, 0.95, l)));
   // Split tone: cold blue lift in the shadows, warm peach gain in the highlights.
   c = c * mix(vec3(1.0), uGain, smoothstep(0.35, 1.0, l)) + uLift * (1.0 - smoothstep(0.0, 0.5, l));
-  // Cold shadows: pull the magenta out of the lower tones so the peach lives only in the light.
-  c *= mix(vec3(0.9, 0.97, 1.08), vec3(1.0), smoothstep(0.12, 0.55, l));
+  // Teal-steel shadows and mid-tones: warmth lives only in the lanterns and the sparks.
+  c *= mix(vec3(0.86, 0.98, 1.1), vec3(1.0), smoothstep(0.2, 0.7, l));
   // Gentle S-curve around mid grey.
   c = clamp(c, 0.0, 1.0);
   c = mix(c, c * c * (3.0 - 2.0 * c), uContrast);
-  // Finisher: bleed colour out, keep a warm/red cast.
+  // Finisher: bleed colour out to ink, but let pure reds (the moon, the ink) burn through.
   float gl = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = mix(c, vec3(gl * 1.08, gl * 0.9, gl * 0.86), uDesat);
+  float redness = smoothstep(0.08, 0.35, c.r - max(c.g, c.b));
+  c = mix(c, mix(vec3(gl * 0.95, gl * 0.93, gl * 0.98), c * vec3(1.15, 0.9, 0.9), redness), uDesat);
   c = mix(c, uFlashColor, uFlash);
   // Paper / brush grain (static, screen space): a washi texture instead of video noise.
   vec2 fc = gl_FragCoord.xy;
@@ -86,6 +88,42 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
   outputColor = vec4(pow(max(c, 0.0), vec3(2.2)), inputColor.a);
 }
 `;
+
+/** A refractive ring blown out of the clash point: the deflect's "air crack". */
+const SHOCK_FRAG = /* glsl */ `
+uniform vec2 uCenter;
+uniform float uT;
+uniform float uAmp;
+uniform float uSize;
+void mainUv(inout vec2 uv) {
+  if (uT >= 1.0) return;
+  vec2 asp = vec2(aspect, 1.0);
+  vec2 d = (uv - uCenter) * asp;
+  float r = length(d);
+  float rad = uSize * (1.0 - pow(1.0 - uT, 3.0));
+  float w = 0.035 + uSize * 0.12;
+  float x = (r - rad) / w;
+  float ring = exp(-x * x * 2.5) * x;
+  uv -= (d / max(r, 1e-4)) / asp * ring * uAmp * (1.0 - uT) * (1.0 - uT);
+}`;
+
+const _sp = new THREE.Vector3();
+
+class ShockEffect extends Effect {
+  constructor() {
+    super("ShockEffect", SHOCK_FRAG, {
+      uniforms: new Map<string, THREE.Uniform>([
+        ["uCenter", new THREE.Uniform(new THREE.Vector2(0.5, 0.5))],
+        ["uT", new THREE.Uniform(1)],
+        ["uAmp", new THREE.Uniform(0.02)],
+        ["uSize", new THREE.Uniform(0.2)],
+      ]),
+    });
+  }
+  u(name: string): THREE.Uniform {
+    return this.uniforms.get(name)!;
+  }
+}
 
 class GradeEffect extends Effect {
   constructor() {
@@ -118,6 +156,10 @@ export class Post {
   private readonly ca: ChromaticAberrationEffect;
   private readonly vignette: VignetteEffect;
   private readonly ao: N8AOPostPass;
+  private readonly shockFx = new ShockEffect();
+  private shockT = 1;
+  private shockDur = 0.3;
+  private readonly shockAt = new THREE.Vector3();
 
   /** Transient intensities, decayed each frame (real time). */
   flash = 0;
@@ -128,6 +170,7 @@ export class Post {
   private flashColor = new THREE.Color(1, 0.85, 0.6);
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, sun?: THREE.Mesh) {
+    this.camera = camera;
     this.composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: 4 });
     this.composer.addPass(new RenderPass(scene, camera));
     // Contact shadows: armour rows, cloth folds and feet on the tiles read as form, not plastic.
@@ -136,28 +179,29 @@ export class Post {
     this.ao.configuration.aoRadius = 0.6;
     this.ao.configuration.distanceFalloff = 0.4;
     this.ao.configuration.intensity = 3.8;
-    // Cold occlusion (blue-violet, never black): shadows stay dusk-coloured.
-    this.ao.configuration.color = new THREE.Color(0.07, 0.07, 0.13);
+    // Near-black blue occlusion: deep night contact shadows.
+    this.ao.configuration.color = new THREE.Color(0.01, 0.014, 0.03);
     this.ao.configuration.gammaCorrection = false;
     this.ao.configuration.halfRes = true;
     this.composer.addPass(this.ao);
+    this.composer.addPass(new EffectPass(camera, this.shockFx));
 
     this.bloom = new BloomEffect({
       mipmapBlur: true,
-      luminanceThreshold: 1.15,
-      luminanceSmoothing: 0.35,
-      intensity: 0.95,
-      radius: 0.72,
+      luminanceThreshold: 1.0,
+      luminanceSmoothing: 0.3,
+      intensity: 1.15,
+      radius: 0.78,
       levels: 8,
     });
     this.grade = new GradeEffect();
     const rays = sun
       ? [
           new GodRaysEffect(camera, sun, {
-            density: 0.94,
+            density: 0.9,
             decay: 0.93,
-            weight: 0.26,
-            exposure: 0.3,
+            weight: 0.14,
+            exposure: 0.16,
             samples: 60,
             clampMax: 1.0,
             kernelSize: KernelSize.SMALL,
@@ -172,7 +216,7 @@ export class Post {
       radialModulation: true,
       modulationOffset: 0.2,
     });
-    this.vignette = new VignetteEffect({ offset: 0.3, darkness: 0.55 });
+    this.vignette = new VignetteEffect({ offset: 0.28, darkness: 0.62 });
     this.vignette.blendMode.blendFunction = BlendFunction.NORMAL;
     this.composer.addPass(new EffectPass(camera, this.ca, this.vignette));
   }
@@ -182,6 +226,17 @@ export class Post {
     if (color !== undefined) this.flashColor.set(color);
     else this.flashColor.setRGB(1, 0.85, 0.6);
   }
+
+  /** Deflect shockwave from a world point (size in screen heights, amp = refraction strength). */
+  shock(at: THREE.Vector3, size = 0.22, amp = 0.025, dur = 0.32): void {
+    this.shockAt.copy(at);
+    this.shockT = 0;
+    this.shockDur = dur;
+    this.shockFx.u("uSize").value = size;
+    this.shockFx.u("uAmp").value = amp;
+  }
+
+  private camera: THREE.Camera | null = null;
 
   kickAberration(amount: number): void {
     this.aberration = Math.max(this.aberration, amount);
@@ -198,7 +253,13 @@ export class Post {
     g.u("uFade").value = this.fade;
     const a = 0.0001 + this.aberration * 0.0012;
     this.ca.offset.set(a, a * 0.6);
-    this.vignette.darkness = 0.55 + this.desat * 0.25;
+    this.vignette.darkness = 0.62 + this.desat * 0.25;
+    if (this.shockT < 1 && this.camera) {
+      this.shockT = Math.min(1, this.shockT + dt / this.shockDur);
+      const p = _sp.copy(this.shockAt).project(this.camera);
+      (this.shockFx.u("uCenter").value as THREE.Vector2).set(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
+      this.shockFx.u("uT").value = p.z < 1 ? this.shockT : 1;
+    } else this.shockFx.u("uT").value = 1;
     this.composer.render(dt);
   }
 

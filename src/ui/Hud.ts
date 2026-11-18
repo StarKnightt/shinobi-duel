@@ -15,10 +15,15 @@ const CSS = /* css */ `
 #hud canvas.brush { display: block; }
 /* title */
 #hud #title.hidden { transition-duration: 0.12s; }
-#title { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#title .t-kanji { width: min(46vw, 620px); height: auto; filter: drop-shadow(0 0 30px rgba(0,0,0,0.55)); margin-top: -6vh; }
-#title .t-latin { width: min(34vw, 460px); height: auto; margin-top: -2vh; opacity: 0.92; }
-#title .t-stroke { width: min(40vw, 540px); height: auto; margin-top: -1.2vh; opacity: 0.75; }
+#title { display: block; }
+/* Poster layout: the two kanji stacked in a brushed column on the right, a red stroke down their
+   spine, the latin name small beneath; the moon, the keep and the duellists own the rest. */
+#title .t-block { position: absolute; right: 12vw; top: 6vh; display: flex; flex-direction: column; align-items: center; }
+#title .t-col { position: relative; display: flex; flex-direction: column; align-items: center; }
+#title .t-kanji { height: min(25vh, 250px); width: auto; filter: drop-shadow(0 0 24px rgba(0,0,0,0.7)); margin: -2.6vh 0; position: relative; z-index: 1; }
+#title .t-stroke { position: absolute; left: 50%; top: 50%; width: min(46vh, 460px); height: min(5vh, 50px); transform: translate(-50%, -50%) rotate(90deg); opacity: 0.88; }
+#title .t-latin { width: min(17vw, 250px); height: auto; margin-top: 1.8vh; opacity: 0.88; }
+#title .t-seal { position: absolute; right: -4.4vh; bottom: 3vh; width: 4vh; height: auto; z-index: 2; }
 #title .press { position: absolute; right: 7vw; bottom: 9vh; height: 30px; width: auto; opacity: 0.8; animation: breathe 3.6s ease-in-out infinite; }
 #title .keys { position: absolute; left: 4vw; bottom: 7vh; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; opacity: 0.72; width: max-content; }
 #title .keys img { height: min(2.6vh, 22px); width: auto; flex: none; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.9)); }
@@ -236,21 +241,31 @@ export class Hud {
     // ---------------------------------------------------------------- title
     this.title = el("div", "layer", root);
     this.title.id = "title";
-    const tk = brushText("雪刃", { size: 260, color: "#f1ebe0", seed: 21, dry: 0.7, splatter: 0.6, glow: "rgba(255,120,40,0.25)" });
-    const tkImg = new Image();
-    tkImg.src = tk.toDataURL();
-    tkImg.className = "t-kanji";
-    this.title.appendChild(tkImg);
+    const block = el("div", "t-block", this.title);
+    const col = el("div", "t-col", block);
     const st = brushStroke(900, 60, "#8a1a12", 5);
     const stImg = new Image();
     stImg.src = st.toDataURL();
     stImg.className = "t-stroke";
-    this.title.appendChild(stImg);
+    col.appendChild(stImg);
+    ["雪", "刃"].forEach((ch, i) => {
+      const k = brushText(ch, { size: 260, color: "#f1ebe0", seed: 21 + i * 5, dry: 0.7, splatter: 0.6, glow: "rgba(150,180,255,0.18)" });
+      const img = new Image();
+      img.src = k.toDataURL();
+      img.className = "t-kanji";
+      col.appendChild(img);
+    });
+    // A small red seal stamp (落款) beside the first character.
+    const seal = brushText("影", { size: 90, color: "#b3241a", seed: 77, dry: 0.4, splatter: 0, pad: 6 });
+    const sealImg = new Image();
+    sealImg.src = seal.toDataURL();
+    sealImg.className = "t-seal";
+    col.appendChild(sealImg);
     const tl = brushText("SHINOBI DUEL", { size: 64, font: LATIN_FONT, weight: 700, color: "#efe7da", seed: 4, dry: 0.35, splatter: 0.1, letterSpacing: 0.28 });
     const tlImg = new Image();
     tlImg.src = tl.toDataURL();
     tlImg.className = "t-latin";
-    this.title.appendChild(tlImg);
+    block.appendChild(tlImg);
     const titlePress = this.pressImg();
     titlePress.src = this.smallURL("press any key  ·  click to begin");
     titlePress.classList.add("begin");

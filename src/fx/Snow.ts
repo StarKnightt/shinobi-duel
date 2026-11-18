@@ -1,6 +1,6 @@
 /**
- * Falling snow: GPU-animated points in a box that wraps around the camera. Flakes toward the
- * sun forward-scatter into warm HDR glints (they "catch the light"), the rest stay cold.
+ * Falling snow: GPU-animated points in a box that wraps around the camera, driven hard by the
+ * blizzard. Flakes toward the moon forward-scatter into silver glints, the rest stay steel blue.
  */
 import * as THREE from "three";
 import { rng } from "../core/math";
@@ -51,7 +51,7 @@ export class Snow {
           float size = 0.028 + aSeed * 0.035;
           gl_PointSize = clamp(size * uScale / -mv.z, 1.0, 14.0);
           vec3 d = normalize(p - cameraPosition);
-          vGlint = pow(max(dot(d, uSun), 0.0), 6.0);
+          vGlint = pow(max(dot(d, uSun), 0.0), 5.0);
           float dist = -mv.z;
           vA = smoothstep(0.3, 1.2, dist) * (1.0 - smoothstep(22.0, 32.0, dist));
         }`,
@@ -61,7 +61,7 @@ export class Snow {
           vec2 c = gl_PointCoord - 0.5;
           float d = length(c);
           float a = (1.0 - smoothstep(0.1, 0.5, d)) * vA;
-          vec3 col = mix(vec3(0.62, 0.68, 0.86), vec3(3.8, 1.75, 0.8), vGlint);
+          vec3 col = mix(vec3(0.36, 0.42, 0.56), vec3(2.6, 2.8, 3.2), vGlint);
           gl_FragColor = vec4(col * a, a * 0.9);
         }`,
       transparent: true,
@@ -76,7 +76,7 @@ export class Snow {
   update(t: number, cam: THREE.Vector3, wind: number, viewportH: number): void {
     this.mat.uniforms.uTime.value = t;
     this.mat.uniforms.uCam.value.copy(cam);
-    this.mat.uniforms.uWind.value.set(-1.2 - wind * 2.4, 0, 0.5 + wind * 0.8);
+    this.mat.uniforms.uWind.value.set(-2.6 - wind * 4.2, 0, 1.2 + wind * 1.9);
     this.mat.uniforms.uScale.value = viewportH * 0.9;
   }
 }

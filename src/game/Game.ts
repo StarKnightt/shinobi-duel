@@ -34,6 +34,7 @@ import { Shinobi } from "../chars/Shinobi";
 import { FIXED_DT, Loop } from "../core/Loop";
 import { Input } from "../core/Input";
 import { clamp, damp, lerp, segSegDist, smooth } from "../core/math";
+import { Blizzard } from "../fx/Blizzard";
 import { Fx } from "../fx/Fx";
 import { Snow } from "../fx/Snow";
 import { Post } from "../render/Post";
@@ -119,6 +120,7 @@ export class Game {
   readonly post: Post;
   readonly arena: Arena;
   readonly snow = new Snow(9000);
+  readonly blizzard = new Blizzard();
   readonly fx: Fx;
   /** Procedural bodies (default + fallback); the slots may swap them for skinned ones. */
   readonly shinobi = new Shinobi();
@@ -223,7 +225,7 @@ export class Game {
     this.scene.environmentIntensity = 0.32;
     pmrem.dispose();
 
-    this.scene.add(this.snow.points);
+    this.scene.add(this.snow.points, this.blizzard.group);
     this.fx = new Fx(this.scene);
     this.playerBody.addTo(this.scene);
     this.bossBody.addTo(this.scene);
@@ -938,7 +940,11 @@ export class Game {
     this.playerMeets();
     const heavy = !!h.heavy || !!h.perilous;
     this.hitstop = HITSTOP_DEFLECT + (heavy ? 0.01 : 0);
-    this.fx.deflect(at, out, heavy ? 1.3 : 1);
+    // Presentation scales a little with the chain (the rules don't).
+    const chainK = 1 + Math.min(this.deflectChain, 4) * 0.08;
+    this.fx.deflect(at, out, (heavy ? 1.3 : 1) * chainK);
+    this.post.shock(at, heavy ? 0.3 : 0.22, heavy ? 0.034 : 0.026);
+    this.cam.punch(heavy ? 0.55 : 0.38);
     this.audio.clang(heavy ? 1 : 0.88);
     this.cam.shake(heavy ? 0.3 : 0.22);
     this.post.kickAberration(heavy ? 0.9 : 0.6);
@@ -1554,6 +1560,9 @@ export class Game {
     this.bossBody.frame(dt * this.timeScale * b.tempo);
     this.snow.update(this.realTime, this.camera.position, this.windK, window.innerHeight * Math.min(window.devicePixelRatio, 1.5));
     this.arena.update(dt, this.windK);
+    this.blizzard.update(this.realTime, this.camera.position, this.wind, this.windK);
+    // The finisher's bleed turns the moon to blood.
+    this.arena.blood = this.state === "finisher" || this.state === "victory" ? Math.min(1, this.post.desat * 1.6) : 0;
 
     const au = this.audio;
     au.intensity = this.state === "title" ? 0.1 : this.state === "fight" ? 0.45 + (1 - b.health / 100) * 0.4 + b.posture / 400 + (b.phase === 2 ? 0.1 : 0) : 0.35;
